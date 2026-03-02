@@ -11,6 +11,7 @@ public class OptiFramesManager {
     private static boolean enabled = true;
     private static boolean renderFrame = true;
     private static boolean renderTexture = true;
+    private static boolean renderDecorations = true;
     
     private static final Path CONFIG_DIR = Paths.get("config");
     private static final Path CONFIG_FILE = CONFIG_DIR.resolve("optiframes.json");
@@ -43,6 +44,14 @@ public class OptiFramesManager {
         renderTexture = value;
     }
 
+    public static boolean isDecorationsRendered() {
+        return renderDecorations;
+    }
+
+    public static void setRenderDecorations(boolean value) {
+        renderDecorations = value;
+    }
+
     public static void loadConfig() {
         try {
             if (Files.exists(CONFIG_FILE)) {
@@ -58,6 +67,9 @@ public class OptiFramesManager {
                 }
                 if (json.has("renderTexture")) {
                     renderTexture = json.get("renderTexture").getAsBoolean();
+                }
+                if (json.has("renderDecorations")) {
+                    renderDecorations = json.get("renderDecorations").getAsBoolean();
                 }
             }
         } catch (IOException | IllegalStateException e) {

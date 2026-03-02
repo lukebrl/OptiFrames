@@ -29,7 +29,7 @@ public final class OptiFramesConfigScreen {
         ConfigEntryBuilder entryBuilder = builder.entryBuilder();
 
         general.addEntry(entryBuilder.startBooleanToggle(
-                Text.literal("Enabled"),
+                Text.literal("Use OptiFrames Render"),
                 OptiFramesManager.isEnabled())
             .setDefaultValue(true)
             .setSaveConsumer(OptiFramesManager::setEnabled)
@@ -52,6 +52,14 @@ public final class OptiFramesConfigScreen {
             .setTooltip(Text.literal("Enable/disable texture on frame borders"))
             .build());
 
+        general.addEntry(entryBuilder.startBooleanToggle(
+                Text.literal("Render Decorations"),
+                OptiFramesManager.isDecorationsRendered())
+            .setDefaultValue(true)
+            .setSaveConsumer(OptiFramesManager::setRenderDecorations)
+            .setTooltip(Text.literal("Enable/disable decorations rendering"))
+            .build());
+
         return builder.build();
     }
 
@@ -63,6 +71,8 @@ public final class OptiFramesConfigScreen {
             json.addProperty("enabled", OptiFramesManager.isEnabled());
             json.addProperty("renderFrames", OptiFramesManager.isFrameRendered());
             json.addProperty("renderTexture", OptiFramesManager.isTextureRendered());
+            json.addProperty("renderDecorations", OptiFramesManager.isDecorationsRendered());
+
 
             Files.writeString(CONFIG_FILE, json.toString());
         } catch (IOException e) {
