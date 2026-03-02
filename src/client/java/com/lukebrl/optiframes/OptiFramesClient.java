@@ -1,7 +1,6 @@
 package com.lukebrl.optiframes;
 
 import net.fabricmc.api.ClientModInitializer;
-import com.lukebrl.optiframes.keybind.KeybindRegistry;
 import com.lukebrl.optiframes.cache.MapFrameCacheManager;
 
 import org.slf4j.Logger;
@@ -16,7 +15,6 @@ public class OptiFramesClient implements ClientModInitializer {
 		LOGGER.info("optiframe initialized");
 		
 		OptiFramesManager.loadConfig();
-		KeybindRegistry.register();
 		MapFrameCacheManager.init();
 	}
 }

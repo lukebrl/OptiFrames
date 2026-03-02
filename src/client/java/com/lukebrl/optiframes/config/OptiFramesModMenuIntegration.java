@@ -7,6 +7,6 @@ import com.terraformersmc.modmenu.api.ModMenuApi;
 public class OptiFramesModMenuIntegration implements ModMenuApi {
     @Override
     public ConfigScreenFactory<?> getModConfigScreenFactory() {
-        return OptiFramesConfigScreen::createConfigScreen;
+        return parent -> OptiFramesConfigScreen.createConfigScreen(parent);
     }
 }
