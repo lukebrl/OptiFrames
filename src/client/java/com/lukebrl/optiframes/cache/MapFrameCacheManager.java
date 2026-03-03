@@ -5,12 +5,11 @@ import net.minecraft.entity.decoration.ItemFrameEntity;
 import net.minecraft.item.Items;
 import net.minecraft.util.math.Direction;
 
-import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
-import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class MapFrameCacheManager {
 
-    private static final Long2ObjectMap<Direction> CACHE = new Long2ObjectOpenHashMap<>(512);
+    private static final ConcurrentHashMap<Long, Direction> CACHE = new ConcurrentHashMap<>(512);
 
     private MapFrameCacheManager() {}
 
