@@ -12,6 +12,8 @@ public class OptiFramesManager {
     private static boolean renderFrame = true;
     private static boolean renderTexture = true;
     private static boolean renderDecorations = true;
+    private static int atlasSize = 4096; // default, will be clamped to GPU max
+    private static int maxAtlasSize = 16384; // updated at runtime from GL_MAX_TEXTURE_SIZE
     
     private static final Path CONFIG_DIR = Paths.get("config");
     private static final Path CONFIG_FILE = CONFIG_DIR.resolve("optiframes.json");
@@ -52,6 +54,26 @@ public class OptiFramesManager {
         renderDecorations = value;
     }
 
+    public static int getAtlasSize() {
+        return atlasSize;
+    }
+
+    public static void setAtlasSize(int value) {
+        value = Math.max(1024, Math.min(value, maxAtlasSize));
+        atlasSize = value;
+    }
+
+    public static int getMaxAtlasSize() {
+        return maxAtlasSize;
+    }
+
+    public static void setMaxAtlasSize(int value) {
+        maxAtlasSize = value;
+        if (atlasSize > maxAtlasSize) {
+            atlasSize = maxAtlasSize;
+        }
+    }
+
     public static void loadConfig() {
         try {
             if (Files.exists(CONFIG_FILE)) {
@@ -70,6 +92,10 @@ public class OptiFramesManager {
                 }
                 if (json.has("renderDecorations")) {
                     renderDecorations = json.get("renderDecorations").getAsBoolean();
+                }
+                if (json.has("atlasSize")) {
+                    atlasSize = json.get("atlasSize").getAsInt();
+                    atlasSize = Math.max(1024, Math.min(atlasSize, maxAtlasSize));
                 }
             }
         } catch (IOException | IllegalStateException e) {

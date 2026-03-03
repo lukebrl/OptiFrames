@@ -60,6 +60,27 @@ public final class OptiFramesConfigScreen {
             .setTooltip(Text.literal("Enable/disable decorations rendering"))
             .build());
 
+        int maxSize = OptiFramesManager.getMaxAtlasSize();
+        java.util.List<Integer> sizeOptions = new java.util.ArrayList<>();
+        for (int s = 1024; s <= maxSize; s *= 2) {
+            sizeOptions.add(s);
+        }
+        Integer[] sizeArray = sizeOptions.toArray(new Integer[0]);
+
+        general.addEntry(entryBuilder.startSelector(
+                Text.literal("Atlas Size"),
+                sizeArray,
+                (Integer) OptiFramesManager.getAtlasSize())
+            .setDefaultValue(4096)
+            .setSaveConsumer(val -> {
+                OptiFramesManager.setAtlasSize(val);
+            })
+            .setNameProvider(val -> {
+                return Text.literal(val + "x" + val + (val == 4096 ? " [Recommended]" : ""));
+            })
+            .setTooltip(Text.literal("Atlas texture size. Bigger = more maps per draw call.\nRequires world rejoin to apply.\nGPU max: " + maxSize + "x" + maxSize))
+            .build());
+
         return builder.build();
     }
 
@@ -72,7 +93,7 @@ public final class OptiFramesConfigScreen {
             json.addProperty("renderFrames", OptiFramesManager.isFrameRendered());
             json.addProperty("renderTexture", OptiFramesManager.isTextureRendered());
             json.addProperty("renderDecorations", OptiFramesManager.isDecorationsRendered());
-
+            json.addProperty("atlasSize", OptiFramesManager.getAtlasSize());
 
             Files.writeString(CONFIG_FILE, json.toString());
         } catch (IOException e) {

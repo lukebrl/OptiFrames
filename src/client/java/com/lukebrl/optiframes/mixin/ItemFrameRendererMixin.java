@@ -1,13 +1,15 @@
 package com.lukebrl.optiframes.mixin;
 
 import com.lukebrl.optiframes.OptiFramesManager;
+import com.lukebrl.optiframes.atlas.MapAtlasManager;
 import com.lukebrl.optiframes.cache.MapFrameCacheManager;
 import com.lukebrl.optiframes.utils.BorderMeshGeometry;
 import com.lukebrl.optiframes.utils.NeighborDirectionMapper;
 
-
 import net.minecraft.client.render.MapRenderer;
+import net.minecraft.client.render.MapRenderState;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.font.TextRenderer.TextLayerType;
 import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.RenderLayers;
 import net.minecraft.client.render.entity.ItemFrameEntityRenderer;
@@ -15,21 +17,31 @@ import net.minecraft.client.render.entity.state.ItemFrameEntityRenderState;
 import net.minecraft.client.render.command.OrderedRenderCommandQueue;
 import net.minecraft.client.render.state.CameraRenderState;
 import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.component.type.MapIdComponent;
+import net.minecraft.item.map.MapDecoration;
+import net.minecraft.item.map.MapState;
+import net.minecraft.text.Text;
+import net.minecraft.util.Atlases;
 import net.minecraft.util.math.Direction;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.RotationAxis;
 import net.minecraft.client.render.block.BlockRenderManager;
 import net.minecraft.util.Identifier;
 import net.minecraft.client.util.SpriteIdentifier;
 import net.minecraft.client.texture.Sprite;
-
+import net.minecraft.client.texture.SpriteAtlasTexture;
+import net.minecraft.client.font.TextRenderer;
 
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+import java.util.Objects;
 
 
 @Mixin(ItemFrameEntityRenderer.class)
@@ -49,6 +61,9 @@ public abstract class ItemFrameRendererMixin {
     private static final float[] UVS = new float[8];
     private static final int[] BORDER_COLOR = new int[3];
 
+    // cached decorations atlas
+    private static SpriteAtlasTexture decorationsAtlas = null;
+
     // cached minecraft client
     private static MinecraftClient MCInstance = null;
 
@@ -61,6 +76,41 @@ public abstract class ItemFrameRendererMixin {
     @Shadow
     protected abstract Vec3d getPositionOffset(ItemFrameEntityRenderState state);
 
+    @Redirect(
+        method = "updateRenderState",
+        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/render/MapRenderer;update(Lnet/minecraft/component/type/MapIdComponent;Lnet/minecraft/item/map/MapState;Lnet/minecraft/client/render/MapRenderState;)V")
+    )
+    private void optiframes$redirectMapUpdate(
+        MapRenderer renderer,
+        MapIdComponent mapId,
+        MapState mapState,
+        MapRenderState renderState
+    ) {
+        if (OptiFramesManager.isEnabled()) {
+            // update map in our atlas
+            MapAtlasManager.updateMap(mapId, mapState);
+
+            renderState.decorations.clear();
+            for (MapDecoration decoration : mapState.getDecorations()) {
+                // set deco atlas
+                if (decorationsAtlas == null) {
+                    decorationsAtlas = MinecraftClient.getInstance().getAtlasManager()
+                        .getAtlasTexture(Atlases.MAP_DECORATIONS);
+                }
+                // vanilla code for decorations
+                MapRenderState.Decoration d = new MapRenderState.Decoration();
+                d.sprite = decorationsAtlas.getSprite(decoration.getAssetId());
+                d.x = decoration.x();
+                d.z = decoration.z();
+                d.rotation = decoration.rotation();
+                d.name = (Text) decoration.name().orElse(null);
+                d.alwaysRendered = decoration.isAlwaysRendered();
+                renderState.decorations.add(d);
+            }
+        } else {
+            renderer.update(mapId, mapState, renderState);
+        }
+    }
 
     @Inject(method = "render", at = @At("HEAD"), cancellable = true)
     private void optiframes$renderMapEntity(
@@ -92,21 +142,20 @@ public abstract class ItemFrameRendererMixin {
             (double)direction.getOffsetY() * 0.46875D, 
             (double)direction.getOffsetZ() * 0.46875D
         );
-
         // makes the render face outward wall/floor
-        float f, h;
+        float pitch, yaw;
         if (direction.getAxis().isHorizontal()) {
-            f = 0.0F;
-            h = 180.0F - direction.getPositiveHorizontalDegrees();
+            pitch = 0.0F;
+            yaw = 180.0F - direction.getPositiveHorizontalDegrees();
         } else {
-            f = (float)(-90 * direction.getDirection().offset());
-            h = 180.0F;
+            pitch = (float)(-90 * direction.getDirection().offset());
+            yaw = 180.0F;
         }
-        matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(f));
-        matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(h));
+        matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(pitch));
+        matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(yaw));
 
         // handle light if glowing item frame
-        int light = this.mapRenderer == null ? state.light : (state.glow ? FULLBRIGHT : state.light);
+        int light = state.glow ? FULLBRIGHT : state.light;
 
         // change map pos if not visible
         matrices.translate(0.0F, 0.0F, state.invisible || !OptiFramesManager.isFrameRendered() ? 0.49F : 0.4375F);
@@ -123,7 +172,7 @@ public abstract class ItemFrameRendererMixin {
         matrices.scale(scale, scale, scale); // scale down map to world units
         matrices.translate(-64.0F, -64.0F, 0.0F); // center map
 
-        // draw frame if visible
+        // draw frame border if visible
         if (!state.invisible && OptiFramesManager.isFrameRendered()) {
             // cache sprite after first run
             // recache if texture rendering is toggled
@@ -193,16 +242,69 @@ public abstract class ItemFrameRendererMixin {
             });
         }
 
+        // map rendering
         if (this.mapRenderer != null) {
-            if (OptiFramesManager.isDecorationsRendered()) {
-                this.mapRenderer.draw(state.mapRenderState, matrices, queue, true, light);
-            } else {
-                queue.submitCustom(matrices, RenderLayers.text(state.mapRenderState.texture), (matrix, vertexConsumer) -> {
-                    vertexConsumer.vertex(matrix, 0.0F, 128.0F, -0.01F).color(-1).texture(0.0F, 1.0F).light(light);
-                    vertexConsumer.vertex(matrix, 128.0F, 128.0F, -0.01F).color(-1).texture(1.0F, 1.0F).light(light);
-                    vertexConsumer.vertex(matrix, 128.0F, 0.0F, -0.01F).color(-1).texture(1.0F, 0.0F).light(light);
-                    vertexConsumer.vertex(matrix, 0.0F, 0.0F, -0.01F).color(-1).texture(0.0F, 0.0F).light(light);
+            // upload any dirty atlas pages before drawing
+            MapAtlasManager.uploadDirtyPages();
+
+            RenderLayer atlasLayer = MapAtlasManager.getRenderLayer(state.mapId);
+            float[] atlasUVs = MapAtlasManager.getUVs(state.mapId);
+            
+            boolean drawDecorations = OptiFramesManager.isDecorationsRendered();
+
+            if (atlasLayer != null && atlasUVs != null) {
+                // draw map using atlas
+                queue.submitCustom(matrices, atlasLayer, (matrix, vertexConsumer) -> {
+                    vertexConsumer.vertex(matrix, 0.0F, 128.0F, -0.01F).color(-1).texture(atlasUVs[0], atlasUVs[3]).light(light);
+                    vertexConsumer.vertex(matrix, 128.0F, 128.0F, -0.01F).color(-1).texture(atlasUVs[2], atlasUVs[3]).light(light);
+                    vertexConsumer.vertex(matrix, 128.0F, 0.0F, -0.01F).color(-1).texture(atlasUVs[2], atlasUVs[1]).light(light);
+                    vertexConsumer.vertex(matrix, 0.0F, 0.0F, -0.01F).color(-1).texture(atlasUVs[0], atlasUVs[1]).light(light);
                 });
+
+                MapRenderState renderState = state.mapRenderState;
+                
+                // vanilla decorations code
+                int i = 0;
+                for(MapRenderState.Decoration decoration : renderState.decorations) {
+                    if (!drawDecorations || decoration.alwaysRendered) {
+                        matrices.push();
+                        matrices.translate((float)decoration.x / 2.0F + 64.0F, (float)decoration.z / 2.0F + 64.0F, -0.02F);
+                        matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees((float)(decoration.rotation * 360) / 16.0F));
+                        matrices.scale(4.0F, 4.0F, 3.0F);
+                        matrices.translate(-0.125F, 0.125F, 0.0F);
+                        Sprite sprite = decoration.sprite;
+                        if (sprite != null) {
+                            float f = (float)i * -0.001F;
+                            queue.submitCustom(matrices, RenderLayers.text(sprite.getAtlasId()), (matrix, vertexConsumer) -> {
+                                vertexConsumer.vertex(matrix, -1.0F, 1.0F, f).color(-1).texture(sprite.getMinU(), sprite.getMinV()).light(light);
+                                vertexConsumer.vertex(matrix, 1.0F, 1.0F, f).color(-1).texture(sprite.getMaxU(), sprite.getMinV()).light(light);
+                                vertexConsumer.vertex(matrix, 1.0F, -1.0F, f).color(-1).texture(sprite.getMaxU(), sprite.getMaxV()).light(light);
+                                vertexConsumer.vertex(matrix, -1.0F, -1.0F, f).color(-1).texture(sprite.getMinU(), sprite.getMaxV()).light(light);
+                            });
+                            matrices.pop();
+                        }
+
+                        if (decoration.name != null) {
+                            TextRenderer textRenderer = MinecraftClient.getInstance().textRenderer;
+                            float g = (float)textRenderer.getWidth(decoration.name);
+                            float var10000 = 25.0F / g;
+                            Objects.requireNonNull(textRenderer);
+                            float h = MathHelper.clamp(var10000, 0.0F, 6.0F / 9.0F);
+                            matrices.push();
+                            matrices.translate((float)decoration.x / 2.0F + 64.0F - g * h / 2.0F, (float)decoration.z / 2.0F + 64.0F + 4.0F, -0.025F);
+                            matrices.scale(h, h, -1.0F);
+                            matrices.translate(0.0F, 0.0F, 0.1F);
+                            queue.getBatchingQueue(1).submitText(matrices, 0.0F, 0.0F, decoration.name.asOrderedText(), false, TextLayerType.NORMAL, light, -1, Integer.MIN_VALUE, 0);
+                            matrices.pop();
+                        }
+
+                        ++i;
+                    }
+                }
+
+            } else {
+                // fallback if atlas not working
+                this.mapRenderer.draw(state.mapRenderState, matrices, queue, drawDecorations, light);
             }
         }
 
