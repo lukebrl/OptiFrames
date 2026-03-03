@@ -261,44 +261,49 @@ public abstract class ItemFrameRendererMixin {
                     vertexConsumer.vertex(matrix, 0.0F, 0.0F, -0.01F).color(-1).texture(atlasUVs[0], atlasUVs[1]).light(light);
                 });
 
-                MapRenderState renderState = state.mapRenderState;
                 
-                // vanilla decorations code
-                int i = 0;
-                for(MapRenderState.Decoration decoration : renderState.decorations) {
-                    if (!drawDecorations || decoration.alwaysRendered) {
-                        matrices.push();
-                        matrices.translate((float)decoration.x / 2.0F + 64.0F, (float)decoration.z / 2.0F + 64.0F, -0.02F);
-                        matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees((float)(decoration.rotation * 360) / 16.0F));
-                        matrices.scale(4.0F, 4.0F, 3.0F);
-                        matrices.translate(-0.125F, 0.125F, 0.0F);
-                        Sprite sprite = decoration.sprite;
-                        if (sprite != null) {
-                            float f = (float)i * -0.001F;
-                            queue.submitCustom(matrices, RenderLayers.text(sprite.getAtlasId()), (matrix, vertexConsumer) -> {
-                                vertexConsumer.vertex(matrix, -1.0F, 1.0F, f).color(-1).texture(sprite.getMinU(), sprite.getMinV()).light(light);
-                                vertexConsumer.vertex(matrix, 1.0F, 1.0F, f).color(-1).texture(sprite.getMaxU(), sprite.getMinV()).light(light);
-                                vertexConsumer.vertex(matrix, 1.0F, -1.0F, f).color(-1).texture(sprite.getMaxU(), sprite.getMaxV()).light(light);
-                                vertexConsumer.vertex(matrix, -1.0F, -1.0F, f).color(-1).texture(sprite.getMinU(), sprite.getMaxV()).light(light);
-                            });
-                            matrices.pop();
-                        }
+                
+                
+                if (drawDecorations) {
+                    MapRenderState renderState = state.mapRenderState;
 
-                        if (decoration.name != null) {
-                            TextRenderer textRenderer = MinecraftClient.getInstance().textRenderer;
-                            float g = (float)textRenderer.getWidth(decoration.name);
-                            float var10000 = 25.0F / g;
-                            Objects.requireNonNull(textRenderer);
-                            float h = MathHelper.clamp(var10000, 0.0F, 6.0F / 9.0F);
+                    // vanilla decorations code
+                    int i = 0;
+                    for(MapRenderState.Decoration decoration : renderState.decorations) {
+                        if (decoration.alwaysRendered) {
                             matrices.push();
-                            matrices.translate((float)decoration.x / 2.0F + 64.0F - g * h / 2.0F, (float)decoration.z / 2.0F + 64.0F + 4.0F, -0.025F);
-                            matrices.scale(h, h, -1.0F);
-                            matrices.translate(0.0F, 0.0F, 0.1F);
-                            queue.getBatchingQueue(1).submitText(matrices, 0.0F, 0.0F, decoration.name.asOrderedText(), false, TextLayerType.NORMAL, light, -1, Integer.MIN_VALUE, 0);
-                            matrices.pop();
-                        }
+                            matrices.translate((float)decoration.x / 2.0F + 64.0F, (float)decoration.z / 2.0F + 64.0F, -0.02F);
+                            matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees((float)(decoration.rotation * 360) / 16.0F));
+                            matrices.scale(4.0F, 4.0F, 3.0F);
+                            matrices.translate(-0.125F, 0.125F, 0.0F);
+                            Sprite sprite = decoration.sprite;
+                            if (sprite != null) {
+                                float f = (float)i * -0.001F;
+                                queue.submitCustom(matrices, RenderLayers.text(sprite.getAtlasId()), (matrix, vertexConsumer) -> {
+                                    vertexConsumer.vertex(matrix, -1.0F, 1.0F, f).color(-1).texture(sprite.getMinU(), sprite.getMinV()).light(light);
+                                    vertexConsumer.vertex(matrix, 1.0F, 1.0F, f).color(-1).texture(sprite.getMaxU(), sprite.getMinV()).light(light);
+                                    vertexConsumer.vertex(matrix, 1.0F, -1.0F, f).color(-1).texture(sprite.getMaxU(), sprite.getMaxV()).light(light);
+                                    vertexConsumer.vertex(matrix, -1.0F, -1.0F, f).color(-1).texture(sprite.getMinU(), sprite.getMaxV()).light(light);
+                                });
+                                matrices.pop();
+                            }
 
-                        ++i;
+                            if (decoration.name != null) {
+                                TextRenderer textRenderer = MinecraftClient.getInstance().textRenderer;
+                                float g = (float)textRenderer.getWidth(decoration.name);
+                                float var10000 = 25.0F / g;
+                                Objects.requireNonNull(textRenderer);
+                                float h = MathHelper.clamp(var10000, 0.0F, 6.0F / 9.0F);
+                                matrices.push();
+                                matrices.translate((float)decoration.x / 2.0F + 64.0F - g * h / 2.0F, (float)decoration.z / 2.0F + 64.0F + 4.0F, -0.025F);
+                                matrices.scale(h, h, -1.0F);
+                                matrices.translate(0.0F, 0.0F, 0.1F);
+                                queue.getBatchingQueue(1).submitText(matrices, 0.0F, 0.0F, decoration.name.asOrderedText(), false, TextLayerType.NORMAL, light, -1, Integer.MIN_VALUE, 0);
+                                matrices.pop();
+                            }
+
+                            ++i;
+                        }
                     }
                 }
 
