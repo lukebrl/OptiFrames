@@ -41,6 +41,8 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import org.joml.Quaternionf;
+
 import java.util.Objects;
 
 
@@ -48,6 +50,30 @@ import java.util.Objects;
 public abstract class ItemFrameRendererMixin {
 
     private static final int FULLBRIGHT = (15 << 20) | (15 << 4);
+
+    // pre-computed combined rotation quaternions: [facing][mapRotation]
+    // combines pitch/yaw orientation + map rotation + 180° flip into one quaternion
+    private static final Quaternionf[][] ROTATION_CACHE = new Quaternionf[6][4];
+
+    static {
+        for (Direction dir : Direction.values()) {
+            float pitch, yaw;
+            if (dir.getAxis().isHorizontal()) {
+                pitch = 0.0F;
+                yaw = 180.0F - dir.getPositiveHorizontalDegrees();
+            } else {
+                pitch = (float)(-90 * dir.getDirection().offset());
+                yaw = 180.0F;
+            }
+            for (int rot = 0; rot < 4; rot++) {
+                float zDegrees = rot * 90.0F + 180.0F;
+                Quaternionf q = new Quaternionf(RotationAxis.POSITIVE_X.rotationDegrees(pitch));
+                q.mul(RotationAxis.POSITIVE_Y.rotationDegrees(yaw));
+                q.mul(RotationAxis.POSITIVE_Z.rotationDegrees(zDegrees));
+                ROTATION_CACHE[dir.ordinal()][rot] = q;
+            }
+        }
+    }
 
     // get birch planks texture from atlas for frame borders
     private static final Identifier BLOCK_ATLAS_TEXTURE = Identifier.ofVanilla("textures/atlas/blocks.png");
@@ -135,37 +161,21 @@ public abstract class ItemFrameRendererMixin {
         // positioning
         Direction direction = state.facing;
         Vec3d vec3d = this.getPositionOffset(state);
-        matrices.translate(-vec3d.getX(), -vec3d.getY(), -vec3d.getZ());
-        // move it out of the block (15/32 = 0.46875)
         matrices.translate(
-            (double)direction.getOffsetX() * 0.46875D, 
-            (double)direction.getOffsetY() * 0.46875D, 
-            (double)direction.getOffsetZ() * 0.46875D
+            -vec3d.getX() + direction.getOffsetX() * 0.46875D, 
+            -vec3d.getY() + (double)direction.getOffsetY() * 0.46875D, 
+            -vec3d.getZ() + (double)direction.getOffsetZ() * 0.46875D
         );
-        // makes the render face outward wall/floor
-        float pitch, yaw;
-        if (direction.getAxis().isHorizontal()) {
-            pitch = 0.0F;
-            yaw = 180.0F - direction.getPositiveHorizontalDegrees();
-        } else {
-            pitch = (float)(-90 * direction.getDirection().offset());
-            yaw = 180.0F;
-        }
-        matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(pitch));
-        matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(yaw));
+
+        // apply pre-computed combined rotation (facing orientation + map rotation + 180° flip)
+        int rotation = state.rotation % 4;
+        matrices.multiply(ROTATION_CACHE[direction.ordinal()][rotation]);
 
         // handle light if glowing item frame
         int light = state.glow ? FULLBRIGHT : state.light;
 
         // change map pos if not visible
         matrices.translate(0.0F, 0.0F, state.invisible || !OptiFramesManager.isFrameRendered() ? 0.49F : 0.4375F);
-
-        // map rotate logic
-        // rotation = {0, 2, 4, 6} and 360/8 = 45°
-        // combined it makes quarter turns
-        int rotation = state.rotation % 4;
-        matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees((float)rotation * 2 * 360.0F / 8.0F));
-        matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(180.0F));
 
         // map scaling logic
         float scale = 0.0078125F; // 1/128
@@ -201,9 +211,9 @@ public abstract class ItemFrameRendererMixin {
             }
 
             // item frame entity coordinate
-            int bx = (int) Math.floor(state.x);
-            int by = (int) Math.floor(state.y);
-            int bz = (int) Math.floor(state.z);
+            int bx = MathHelper.floor(state.x);
+            int by = MathHelper.floor(state.y);
+            int bz = MathHelper.floor(state.z);
 
             // check neighbor
             boolean hasTop = MapFrameCacheManager.hasNeighbor(
@@ -244,8 +254,6 @@ public abstract class ItemFrameRendererMixin {
 
         // map rendering
         if (this.mapRenderer != null) {
-            // upload any dirty atlas pages before drawing
-            MapAtlasManager.uploadDirtyPages();
 
             RenderLayer atlasLayer = MapAtlasManager.getRenderLayer(state.mapId);
             float[] atlasUVs = MapAtlasManager.getUVs(state.mapId);

@@ -78,7 +78,7 @@ public final class OptiFramesConfigScreen {
             .setNameProvider(val -> {
                 return Text.literal(val + "x" + val + (val == 4096 ? " [Recommended]" : ""));
             })
-            .setTooltip(Text.literal("Atlas texture size. Bigger = more maps per draw call.\nRequires world rejoin to apply.\nGPU max: " + maxSize + "x" + maxSize))
+            .setTooltip(Text.literal("Atlas texture size.\nBigger = more maps per draw call.\nRequires world rejoin to apply.\nmax: " + maxSize + "x" + maxSize))
             .build());
 
         return builder.build();

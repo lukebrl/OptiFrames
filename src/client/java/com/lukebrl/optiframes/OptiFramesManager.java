@@ -12,8 +12,8 @@ public class OptiFramesManager {
     private static boolean renderFrame = true;
     private static boolean renderTexture = true;
     private static boolean renderDecorations = true;
-    private static int atlasSize = 4096; // default, will be clamped to GPU max
-    private static int maxAtlasSize = 16384; // updated at runtime from GL_MAX_TEXTURE_SIZE
+    private static int atlasSize = 4096; // default
+    private static int maxAtlasSize = 8192;
     
     private static final Path CONFIG_DIR = Paths.get("config");
     private static final Path CONFIG_FILE = CONFIG_DIR.resolve("optiframes.json");

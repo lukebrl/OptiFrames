@@ -1,24 +1,20 @@
 package com.lukebrl.optiframes.atlas;
 
-import com.lukebrl.optiframes.OptiFramesClient;
 import net.minecraft.block.MapColor;
-import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.render.RenderLayers;
 import net.minecraft.client.texture.NativeImage;
-import net.minecraft.client.texture.NativeImageBackedTexture;
 import net.minecraft.component.type.MapIdComponent;
 import net.minecraft.item.map.MapState;
-import net.minecraft.util.Identifier;
 
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
-import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import it.unimi.dsi.fastutil.ints.IntSet;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
+import java.util.zip.CRC32;
+
+import com.mojang.blaze3d.systems.RenderSystem;
 
 /**
  * packs all map textures into shared atlas textures so that every map quad
@@ -31,12 +27,15 @@ public final class MapAtlasManager {
 
     // atlas dimensions
     private static int ATLAS_SIZE = 4096;
-    private static final int MAP_SIZE = 128;
+    static final int MAP_SIZE = 128;
     private static int SLOTS_PER_ROW = ATLAS_SIZE / MAP_SIZE;
     private static int SLOTS_PER_ATLAS = SLOTS_PER_ROW * SLOTS_PER_ROW;
 
     // precomputed color lookup table (256 color bytes -> ARGB)
     private static final int[] COLOR_LUT = new int[256];
+
+    // reusable CRC32 instance
+    private static final CRC32 crc = new CRC32();
 
     private static final List<AtlasPage> pages = new ArrayList<>();
     private static final Int2ObjectOpenHashMap<AtlasSlot> slotMap = new Int2ObjectOpenHashMap<>();
@@ -52,19 +51,19 @@ public final class MapAtlasManager {
     private MapAtlasManager() {}
 
     public static void init() {
-        // query GPU max texture size
-        int glMax = org.lwjgl.opengl.GL11.glGetInteger(org.lwjgl.opengl.GL11.GL_MAX_TEXTURE_SIZE);
-        if (glMax > 0) {
-            com.lukebrl.optiframes.OptiFramesManager.setMaxAtlasSize(glMax);
-        }
         recalculateSize();
     }
-
 
     public static void recalculateSize() {
         ATLAS_SIZE = com.lukebrl.optiframes.OptiFramesManager.getAtlasSize();
         SLOTS_PER_ROW = ATLAS_SIZE / MAP_SIZE;
         SLOTS_PER_ATLAS = SLOTS_PER_ROW * SLOTS_PER_ROW;
+    }
+
+    private static long hashColors(byte[] colors) {
+        crc.reset();
+        crc.update(colors);
+        return crc.getValue();
     }
 
     public static void updateMap(MapIdComponent mapId, MapState mapState) {
@@ -74,6 +73,7 @@ public final class MapAtlasManager {
         if (!updatedThisFrame.add(id)) return;
 
         AtlasSlot slot = slotMap.get(id);
+        long hash = hashColors(mapState.colors);
 
         if (slot == null) {
             // assign a slot for first time
@@ -81,30 +81,52 @@ public final class MapAtlasManager {
             slotMap.put(id, slot);
             // force initial render
             renderMapToAtlas(slot, mapState.colors);
-            slot.lastColors = mapState.colors.clone();
-            slot.page.dirty = true;
+            slot.colorsHash = hash;
+            slot.page.dirtySlots.add(slot.slotIndex);
         } else {
-            // check if colors changed (Arrays.equals is JVM-intrinsified with SIMD)
-            if (!Arrays.equals(mapState.colors, slot.lastColors)) {
+            // check if colors changed via hash comparison
+            if (hash != slot.colorsHash) {
                 renderMapToAtlas(slot, mapState.colors);
-                System.arraycopy(mapState.colors, 0, slot.lastColors, 0, mapState.colors.length);
-                slot.page.dirty = true;
+                slot.colorsHash = hash;
+                slot.page.dirtySlots.add(slot.slotIndex);
             }
         }
     }
 
     /**
-     * upload dirty/updated atlas pages to GPU
+     * upload dirty/updated atlas slots to GPU
+     * uses sub-region writeToTexture to upload only changed 128x128 slots
+     * instead of re-uploading entire atlas texture
+     * this remove lag spike when updating map
     */
     public static void uploadDirtyPages() {
         // reset per-frame dedup so maps get checked again next frame
         updatedThisFrame.clear();
 
         for (AtlasPage page : pages) {
-            if (page.dirty) {
+            if (page.dirtySlots.isEmpty()) continue;
+
+            NativeImage image = page.texture.getImage();
+            var glTexture = page.texture.getGlTexture();
+            if (image == null || glTexture == null) { page.dirtySlots.clear(); continue; }
+
+            if (!page.initialUploadDone) {
+                // full upload to initialize texture
                 page.texture.upload();
-                page.dirty = false;
+                page.initialUploadDone = true;
+            } else {
+                // only the dirty 128x128 slot regions
+                var encoder = RenderSystem.getDevice().createCommandEncoder();
+                for (int i = 0; i < page.dirtySlots.size(); i++) {
+                    int slotIndex = page.dirtySlots.getInt(i);
+                    int slotX = (slotIndex % SLOTS_PER_ROW) * MAP_SIZE;
+                    int slotY = (slotIndex / SLOTS_PER_ROW) * MAP_SIZE;
+
+                    encoder.writeToTexture(glTexture, image, 0, 0, slotX, slotY, MAP_SIZE, MAP_SIZE, slotX, slotY);
+                }
             }
+
+            page.dirtySlots.clear();
         }
     }
 
@@ -155,6 +177,7 @@ public final class MapAtlasManager {
         pages.clear();
         slotMap.clear();
         updatedThisFrame.clear();
+        recalculateSize();
     }
 
     private static AtlasSlot allocateSlot(int mapId) {
@@ -163,18 +186,18 @@ public final class MapAtlasManager {
             if (!page.freeSlots.isEmpty()) {
                 int slotIndex = page.freeSlots.removeInt(page.freeSlots.size() - 1);
                 page.usedCount++;
-                return new AtlasSlot(page, slotIndex);
+                return new AtlasSlot(page, slotIndex, SLOTS_PER_ROW, MAP_SIZE, ATLAS_SIZE);
             }
         }
 
         // create new page if full
-        AtlasPage newPage = new AtlasPage(pages.size());
+        AtlasPage newPage = new AtlasPage(pages.size(), ATLAS_SIZE);
         pages.add(newPage);
         newPage.usedCount = 1;
         for (int i = SLOTS_PER_ATLAS - 1; i >= 1; i--) {
             newPage.freeSlots.add(i);
         }
-        return new AtlasSlot(newPage, 0);
+        return new AtlasSlot(newPage, 0, SLOTS_PER_ROW, MAP_SIZE, ATLAS_SIZE);
     }
 
     private static void renderMapToAtlas(AtlasSlot slot, byte[] colors) {
@@ -190,54 +213,6 @@ public final class MapAtlasManager {
             for (int x = 0; x < MAP_SIZE; x++) {
                 image.setColorArgb(baseX + x, imgY, COLOR_LUT[colors[rowOffset + x] & 0xFF]);
             }
-        }
-    }
-
-    static class AtlasPage {
-        final NativeImageBackedTexture texture;
-        final Identifier textureId;
-        final RenderLayer renderLayer;
-        final IntArrayList freeSlots = new IntArrayList();
-        boolean dirty = false;
-        int usedCount = 0;
-
-        AtlasPage(int pageIndex) {
-            this.texture = new NativeImageBackedTexture("optiframes_atlas_" + pageIndex, ATLAS_SIZE, ATLAS_SIZE, false);
-            this.textureId = Identifier.of(OptiFramesClient.MOD_ID, "atlas/map_page_" + pageIndex);
-            MinecraftClient.getInstance().getTextureManager().registerTexture(this.textureId, this.texture);
-            this.renderLayer = RenderLayers.text(this.textureId);
-
-            // fill with transparent black
-            NativeImage image = this.texture.getImage();
-            if (image != null) {
-                image.fillRect(0, 0, ATLAS_SIZE, ATLAS_SIZE, 0);
-            }
-        }
-
-        void close() {
-            MinecraftClient.getInstance().getTextureManager().destroyTexture(this.textureId);
-            this.texture.close();
-        }
-    }
-
-    static class AtlasSlot {
-        final AtlasPage page;
-        final int slotIndex;
-        final float[] uvs; // u0, v0, u1, v1
-        byte[] lastColors;
-
-        AtlasSlot(AtlasPage page, int slotIndex) {
-            this.page = page;
-            this.slotIndex = slotIndex;
-
-            // compute UVs for this slot
-            int col = slotIndex % SLOTS_PER_ROW;
-            int row = slotIndex / SLOTS_PER_ROW;
-            float u0 = (float)(col * MAP_SIZE) / ATLAS_SIZE;
-            float v0 = (float)(row * MAP_SIZE) / ATLAS_SIZE;
-            float u1 = (float)((col + 1) * MAP_SIZE) / ATLAS_SIZE;
-            float v1 = (float)((row + 1) * MAP_SIZE) / ATLAS_SIZE;
-            this.uvs = new float[]{u0, v0, u1, v1};
         }
     }
 }
