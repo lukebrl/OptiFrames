@@ -261,9 +261,6 @@ public abstract class ItemFrameRendererMixin {
                     vertexConsumer.vertex(matrix, 0.0F, 0.0F, -0.01F).color(-1).texture(atlasUVs[0], atlasUVs[1]).light(light);
                 });
 
-                
-                
-                
                 if (drawDecorations) {
                     MapRenderState renderState = state.mapRenderState;
 

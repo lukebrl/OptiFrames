@@ -8,10 +8,9 @@
 		"lukebrl"
 	],
 	"contact": {
-		"homepage": "https://fabricmc.net/",
-		"sources": "https://github.com/FabricMC/fabric-example-mod"
+		"sources": "https://github.com/lukebrl/OptiFrames"
 	},
-	"license": "MIT",
+	"license": "CC-BY-NC-4.0",
 	"icon": "assets/optiframes/icon.png",
 	"environment": "*",
 	"entrypoints": {
