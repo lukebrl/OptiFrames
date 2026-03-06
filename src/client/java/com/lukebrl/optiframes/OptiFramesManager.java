@@ -9,8 +9,9 @@ import java.io.IOException;
 
 public class OptiFramesManager {
     private static boolean enabled = true;
+    private static boolean useDefaultModel = false;
     private static boolean renderFrame = true;
-    private static boolean renderTexture = true;
+    private static boolean renderBackFrame = true;
     private static boolean renderDecorations = true;
     private static int atlasSize = 4096; // default
     private static int maxAtlasSize = 8192;
@@ -30,6 +31,14 @@ public class OptiFramesManager {
         enabled = value;
     }
 
+    public static boolean useDefaultModel() {
+        return useDefaultModel;
+    }
+
+    public static void setUseDefaultModel(boolean value) {
+        useDefaultModel = value;
+    }
+
     public static boolean isFrameRendered() {
         return renderFrame;
     }
@@ -38,12 +47,12 @@ public class OptiFramesManager {
         renderFrame = value;
     }
 
-    public static boolean isTextureRendered() {
-        return renderTexture;
+    public static boolean isBackRendered() {
+        return renderBackFrame;
     }
 
-    public static void setRenderTexture(boolean value) {
-        renderTexture = value;
+    public static void setRenderBackFrame(boolean value) {
+        renderBackFrame = value;
     }
 
     public static boolean isDecorationsRendered() {
@@ -84,11 +93,14 @@ public class OptiFramesManager {
                 if (json.has("enabled")) {
                     enabled = json.get("enabled").getAsBoolean();
                 }
+                if (json.has("useDefaultModel")) {
+                    useDefaultModel = json.get("useDefaultModel").getAsBoolean();
+                }
                 if (json.has("renderFrames")) {
                     renderFrame = json.get("renderFrames").getAsBoolean();
                 }
-                if (json.has("renderTexture")) {
-                    renderTexture = json.get("renderTexture").getAsBoolean();
+                if (json.has("renderBackFrame")) {
+                    renderBackFrame = json.get("renderBackFrame").getAsBoolean();
                 }
                 if (json.has("renderDecorations")) {
                     renderDecorations = json.get("renderDecorations").getAsBoolean();

@@ -2,26 +2,28 @@ package com.lukebrl.optiframes.mixin;
 
 import com.lukebrl.optiframes.OptiFramesManager;
 import com.lukebrl.optiframes.atlas.MapAtlasManager;
+import com.lukebrl.optiframes.atlas.MapAtlasManager.MapSlotData;
 import com.lukebrl.optiframes.cache.MapFrameCacheManager;
 import com.lukebrl.optiframes.utils.BorderMeshGeometry;
 import com.lukebrl.optiframes.utils.NeighborDirectionMapper;
+import com.lukebrl.optiframes.utils.VanillaRenderHelper;
 
 import net.minecraft.client.render.MapRenderer;
 import net.minecraft.client.render.MapRenderState;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.font.TextRenderer.TextLayerType;
+import net.minecraft.client.render.OverlayTexture;
 import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.RenderLayers;
 import net.minecraft.client.render.entity.ItemFrameEntityRenderer;
 import net.minecraft.client.render.entity.state.ItemFrameEntityRenderState;
 import net.minecraft.client.render.command.OrderedRenderCommandQueue;
+import net.minecraft.client.render.model.BlockStateManagers;
+import net.minecraft.client.render.model.BlockStateModel;
 import net.minecraft.client.render.state.CameraRenderState;
 import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.block.BlockState;
 import net.minecraft.component.type.MapIdComponent;
-import net.minecraft.item.map.MapDecoration;
 import net.minecraft.item.map.MapState;
-import net.minecraft.text.Text;
-import net.minecraft.util.Atlases;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
@@ -30,8 +32,6 @@ import net.minecraft.client.render.block.BlockRenderManager;
 import net.minecraft.util.Identifier;
 import net.minecraft.client.util.SpriteIdentifier;
 import net.minecraft.client.texture.Sprite;
-import net.minecraft.client.texture.SpriteAtlasTexture;
-import net.minecraft.client.font.TextRenderer;
 
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -43,17 +43,17 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import org.joml.Quaternionf;
 
-import java.util.Objects;
-
 
 @Mixin(ItemFrameEntityRenderer.class)
 public abstract class ItemFrameRendererMixin {
 
     private static final int FULLBRIGHT = (15 << 20) | (15 << 4);
 
-    // pre-computed combined rotation quaternions: [facing][mapRotation]
-    // combines pitch/yaw orientation + map rotation + 180° flip into one quaternion
-    private static final Quaternionf[][] ROTATION_CACHE = new Quaternionf[6][4];
+    // pre-computed facing-only rotations
+    private static final Quaternionf[] FACING_CACHE = new Quaternionf[6];
+    // pre-computed map Z rotations 
+    // combines map rotation + 180 flip:
+    private static final Quaternionf[] MAP_Z_CACHE = new Quaternionf[4];
 
     static {
         for (Direction dir : Direction.values()) {
@@ -65,30 +65,28 @@ public abstract class ItemFrameRendererMixin {
                 pitch = (float)(-90 * dir.getDirection().offset());
                 yaw = 180.0F;
             }
-            for (int rot = 0; rot < 4; rot++) {
-                float zDegrees = rot * 90.0F + 180.0F;
-                Quaternionf q = new Quaternionf(RotationAxis.POSITIVE_X.rotationDegrees(pitch));
-                q.mul(RotationAxis.POSITIVE_Y.rotationDegrees(yaw));
-                q.mul(RotationAxis.POSITIVE_Z.rotationDegrees(zDegrees));
-                ROTATION_CACHE[dir.ordinal()][rot] = q;
-            }
+            Quaternionf facing = new Quaternionf(RotationAxis.POSITIVE_X.rotationDegrees(pitch));
+            facing.mul(RotationAxis.POSITIVE_Y.rotationDegrees(yaw));
+            FACING_CACHE[dir.ordinal()] = facing;
+        }
+        for (int rot = 0; rot < 4; rot++) {
+            MAP_Z_CACHE[rot] = RotationAxis.POSITIVE_Z.rotationDegrees(rot * 90.0F + 180.0F);
         }
     }
 
     // get birch planks texture from atlas for frame borders
     private static final Identifier BLOCK_ATLAS_TEXTURE = Identifier.ofVanilla("textures/atlas/blocks.png");
-    private static final Identifier BIRCH_ID = Identifier.ofVanilla("block/birch_planks");
-    private static final SpriteIdentifier BIRCH_SPRITE_ID = new SpriteIdentifier(BLOCK_ATLAS_TEXTURE, BIRCH_ID);
     private static final RenderLayer BORDER_LAYER = RenderLayers.entitySolidZOffsetForward(BLOCK_ATLAS_TEXTURE);
 
-    // cached sprite, UVs and border color
-    private static boolean lastIsTextureRendered;
-    private static Sprite birchSprite = null;
-    private static final float[] UVS = new float[8];
-    private static final int[] BORDER_COLOR = new int[3];
+    private static final SpriteIdentifier BIRCH_SPRITE_ID = new SpriteIdentifier(BLOCK_ATLAS_TEXTURE, Identifier.ofVanilla("block/birch_planks"));
+    private static final SpriteIdentifier FRAME_SPRITE_ID = new SpriteIdentifier(BLOCK_ATLAS_TEXTURE, Identifier.ofVanilla("block/item_frame"));
+    private static final SpriteIdentifier GLOW_FRAME_SPRITE_ID = new SpriteIdentifier(BLOCK_ATLAS_TEXTURE, Identifier.ofVanilla("block/glow_item_frame"));
 
-    // cached decorations atlas
-    private static SpriteAtlasTexture decorationsAtlas = null;
+    // cached sprites
+    private static boolean spritesInitialized = false;
+    private static Sprite birchSprite = null;
+    private static Sprite frameSprite = null;
+    private static Sprite glowFrameSprite = null;
 
     // cached minecraft client
     private static MinecraftClient MCInstance = null;
@@ -115,24 +113,7 @@ public abstract class ItemFrameRendererMixin {
         if (OptiFramesManager.isEnabled()) {
             // update map in our atlas
             MapAtlasManager.updateMap(mapId, mapState);
-
-            renderState.decorations.clear();
-            for (MapDecoration decoration : mapState.getDecorations()) {
-                // set deco atlas
-                if (decorationsAtlas == null) {
-                    decorationsAtlas = MinecraftClient.getInstance().getAtlasManager()
-                        .getAtlasTexture(Atlases.MAP_DECORATIONS);
-                }
-                // vanilla code for decorations
-                MapRenderState.Decoration d = new MapRenderState.Decoration();
-                d.sprite = decorationsAtlas.getSprite(decoration.getAssetId());
-                d.x = decoration.x();
-                d.z = decoration.z();
-                d.rotation = decoration.rotation();
-                d.name = (Text) decoration.name().orElse(null);
-                d.alwaysRendered = decoration.isAlwaysRendered();
-                renderState.decorations.add(d);
-            }
+            VanillaRenderHelper.addDecorations(renderState, mapState);
         } else {
             renderer.update(mapId, mapState, renderState);
         }
@@ -167,47 +148,45 @@ public abstract class ItemFrameRendererMixin {
             -vec3d.getZ() + (double)direction.getOffsetZ() * 0.46875D
         );
 
-        // apply pre-computed combined rotation (facing orientation + map rotation + 180° flip)
         int rotation = state.rotation % 4;
-        matrices.multiply(ROTATION_CACHE[direction.ordinal()][rotation]);
-
-        // handle light if glowing item frame
         int light = state.glow ? FULLBRIGHT : state.light;
+        boolean useDefault = OptiFramesManager.useDefaultModel();
+        boolean renderFrame = OptiFramesManager.isFrameRendered();
 
-        // change map pos if not visible
-        matrices.translate(0.0F, 0.0F, state.invisible || !OptiFramesManager.isFrameRendered() ? 0.49F : 0.4375F);
+        // if vanilla frame model is used
+        if (useDefault) {
+            // facing rotation only as vanilla model renders before map rotation
+            matrices.multiply(FACING_CACHE[direction.ordinal()]);
+
+            // render vanilla frame model
+            if (!state.invisible) {
+                BlockState blockState = BlockStateManagers.getStateForItemFrame(state.glow, true);
+                BlockStateModel model = this.blockRenderManager.getModel(blockState);
+                matrices.push();
+                matrices.translate(-0.5F, -0.5F, -0.5F);
+                queue.submitBlockStateModel(matrices, BORDER_LAYER, model, 1.0F, 1.0F, 1.0F, state.light, OverlayTexture.DEFAULT_UV, state.outlineColor);
+                matrices.pop();
+            }
+
+            matrices.translate(0.0F, 0.0F, state.invisible ? 0.5F : 0.4375F);
+            matrices.multiply(MAP_Z_CACHE[rotation]);
+        } else {
+            matrices.multiply(FACING_CACHE[direction.ordinal()]);
+            matrices.translate(0.0F, 0.0F, state.invisible || !renderFrame ? 0.49F : 0.4375F);
+        }
 
         // map scaling logic
         float scale = 0.0078125F; // 1/128
         matrices.scale(scale, scale, scale); // scale down map to world units
         matrices.translate(-64.0F, -64.0F, 0.0F); // center map
 
-        // draw frame border if visible
-        if (!state.invisible && OptiFramesManager.isFrameRendered()) {
-            // cache sprite after first run
-            // recache if texture rendering is toggled
-            if (birchSprite == null || lastIsTextureRendered != OptiFramesManager.isTextureRendered()) {
+        // custom frame borders
+        if (!useDefault && !state.invisible && renderFrame) {
+            if (!spritesInitialized) {
                 birchSprite = MCInstance.getAtlasManager().getSprite(BIRCH_SPRITE_ID);
-                float u0, u1, v0, v1;
-
-                if (!OptiFramesManager.isTextureRendered()) {
-                    float ux = birchSprite.getFrameU(0f);
-                    float vy = birchSprite.getFrameV(0f);
-                    u0 = u1 = ux;
-                    v0 = v1 = vy;
-                } else {
-                    u0 = birchSprite.getFrameU(15f / 16f);
-                    u1 = birchSprite.getFrameU(1f);
-                    v0 = birchSprite.getFrameV(0f);
-                    v1 = birchSprite.getFrameV(1f);
-                }
-
-                // cache uvs
-                UVS[0] = u0; UVS[1] = v0;
-                UVS[2] = u0; UVS[3] = v1;
-                UVS[4] = u1; UVS[5] = v1;
-                UVS[6] = u1; UVS[7] = v0;
-                lastIsTextureRendered = OptiFramesManager.isTextureRendered();
+                frameSprite = MCInstance.getAtlasManager().getSprite(FRAME_SPRITE_ID);
+                glowFrameSprite = MCInstance.getAtlasManager().getSprite(GLOW_FRAME_SPRITE_ID);
+                spritesInitialized = true;
             }
 
             // item frame entity coordinate
@@ -217,99 +196,66 @@ public abstract class ItemFrameRendererMixin {
 
             // check neighbor
             boolean hasTop = MapFrameCacheManager.hasNeighbor(
-                NeighborDirectionMapper.getNeighborPos(bx, by, bz, direction, rotation, NeighborDirectionMapper.TOP), 
+                NeighborDirectionMapper.getNeighborPos(bx, by, bz, direction, NeighborDirectionMapper.TOP), 
                 direction
             );
             boolean hasBottom = MapFrameCacheManager.hasNeighbor(
-                NeighborDirectionMapper.getNeighborPos(bx, by, bz, direction, rotation, NeighborDirectionMapper.BOTTOM), 
+                NeighborDirectionMapper.getNeighborPos(bx, by, bz, direction, NeighborDirectionMapper.BOTTOM), 
                 direction
             );
             boolean hasLeft = MapFrameCacheManager.hasNeighbor(
-                NeighborDirectionMapper.getNeighborPos(bx, by, bz, direction, rotation, NeighborDirectionMapper.LEFT), 
+                NeighborDirectionMapper.getNeighborPos(bx, by, bz, direction, NeighborDirectionMapper.WEST), 
                 direction
             );
             boolean hasRight = MapFrameCacheManager.hasNeighbor(
-                NeighborDirectionMapper.getNeighborPos(bx, by, bz, direction, rotation, NeighborDirectionMapper.RIGHT), 
+                NeighborDirectionMapper.getNeighborPos(bx, by, bz, direction, NeighborDirectionMapper.EAST), 
                 direction
             );
 
-            if (!OptiFramesManager.isTextureRendered()) {
-                BORDER_COLOR[0] = 181;
-                BORDER_COLOR[1] = 164;
-                BORDER_COLOR[2] = 115;
-            } else {
-                BORDER_COLOR[0] = 255;
-                BORDER_COLOR[1] = 255;
-                BORDER_COLOR[2] = 255;
-            }
-
+            // draw needed borders
             queue.submitCustom(matrices, BORDER_LAYER, (entry, vc) -> {
-                // draw borders that don't have neighbors
-                if (!hasTop) BorderMeshGeometry.drawBorder(vc, entry, BorderMeshGeometry.TOP_VERTS, light, UVS, BORDER_COLOR);
-                if (!hasBottom) BorderMeshGeometry.drawBorder(vc, entry, BorderMeshGeometry.BOTTOM_VERTS, light, UVS, BORDER_COLOR);
-                if (!hasLeft) BorderMeshGeometry.drawBorder(vc, entry, BorderMeshGeometry.LEFT_VERTS, light, UVS, BORDER_COLOR);
-                if (!hasRight) BorderMeshGeometry.drawBorder(vc, entry, BorderMeshGeometry.RIGHT_VERTS, light, UVS, BORDER_COLOR);
+                if (!hasTop) BorderMeshGeometry.drawQuad(vc, entry, BorderMeshGeometry.TOP_VERTS, state.light, birchSprite, BorderMeshGeometry.TOP_UV, BorderMeshGeometry.TOP_NORMAL);
+                if (!hasBottom) BorderMeshGeometry.drawQuad(vc, entry, BorderMeshGeometry.BOTTOM_VERTS, state.light, birchSprite, BorderMeshGeometry.BOTTOM_UV, BorderMeshGeometry.BOTTOM_NORMAL);
+                if (!hasLeft) BorderMeshGeometry.drawQuad(vc, entry, BorderMeshGeometry.WEST_VERTS, state.light, birchSprite, BorderMeshGeometry.WEST_UV, BorderMeshGeometry.WEST_NORMAL);
+                if (!hasRight) BorderMeshGeometry.drawQuad(vc, entry, BorderMeshGeometry.EAST_VERTS, state.light, birchSprite, BorderMeshGeometry.EAST_UV, BorderMeshGeometry.EAST_NORMAL);
+            
+                // back face rendering
+                if (OptiFramesManager.isBackRendered()) {
+                    BorderMeshGeometry.drawQuad(vc, entry, BorderMeshGeometry.BACK_INNER_VERTS, state.light, state.glow ? glowFrameSprite : frameSprite, BorderMeshGeometry.BACK_INNER_UV, BorderMeshGeometry.BACK_NORMAL);
+                    BorderMeshGeometry.drawQuad(vc, entry, BorderMeshGeometry.BACK_BORDER_TOP_VERTS, state.light, birchSprite, BorderMeshGeometry.BACK_BORDER_TOP_UV, BorderMeshGeometry.BACK_NORMAL);
+                    BorderMeshGeometry.drawQuad(vc, entry, BorderMeshGeometry.BACK_BORDER_EAST_VERTS, state.light, birchSprite, BorderMeshGeometry.BACK_BORDER_EAST_UV, BorderMeshGeometry.BACK_NORMAL);
+                    BorderMeshGeometry.drawQuad(vc, entry, BorderMeshGeometry.BACK_BORDER_BOTTOM_VERTS, state.light, birchSprite, BorderMeshGeometry.BACK_BORDER_BOTTOM_UV, BorderMeshGeometry.BACK_NORMAL);
+                    BorderMeshGeometry.drawQuad(vc, entry, BorderMeshGeometry.BACK_BORDER_WEST_VERTS, state.light, birchSprite, BorderMeshGeometry.BACK_BORDER_WEST_UV, BorderMeshGeometry.BACK_NORMAL);
+                }
             });
+        }
+
+        // this is the rotation logic for the map
+        // it's now here to avoid rotating the frame model
+        if (!useDefault) {
+            matrices.translate(64.0F, 64.0F, 0.0F);
+            matrices.multiply(MAP_Z_CACHE[rotation]);
+            matrices.translate(-64.0F, -64.0F, 0.0F);
         }
 
         // map rendering
         if (this.mapRenderer != null) {
 
-            RenderLayer atlasLayer = MapAtlasManager.getRenderLayer(state.mapId);
-            float[] atlasUVs = MapAtlasManager.getUVs(state.mapId);
+            MapSlotData mapData = MapAtlasManager.getMapData(state.mapId);
             
             boolean drawDecorations = OptiFramesManager.isDecorationsRendered();
 
-            if (atlasLayer != null && atlasUVs != null) {
+            if (mapData != null) {
                 // draw map using atlas
-                queue.submitCustom(matrices, atlasLayer, (matrix, vertexConsumer) -> {
-                    vertexConsumer.vertex(matrix, 0.0F, 128.0F, -0.01F).color(-1).texture(atlasUVs[0], atlasUVs[3]).light(light);
-                    vertexConsumer.vertex(matrix, 128.0F, 128.0F, -0.01F).color(-1).texture(atlasUVs[2], atlasUVs[3]).light(light);
-                    vertexConsumer.vertex(matrix, 128.0F, 0.0F, -0.01F).color(-1).texture(atlasUVs[2], atlasUVs[1]).light(light);
-                    vertexConsumer.vertex(matrix, 0.0F, 0.0F, -0.01F).color(-1).texture(atlasUVs[0], atlasUVs[1]).light(light);
+                queue.submitCustom(matrices, mapData.renderLayer, (matrix, vertexConsumer) -> {
+                    vertexConsumer.vertex(matrix, 0.0F, 128.0F, -0.01F).color(-1).texture(mapData.uvs[0], mapData.uvs[3]).light(light);
+                    vertexConsumer.vertex(matrix, 128.0F, 128.0F, -0.01F).color(-1).texture(mapData.uvs[2], mapData.uvs[3]).light(light);
+                    vertexConsumer.vertex(matrix, 128.0F, 0.0F, -0.01F).color(-1).texture(mapData.uvs[2], mapData.uvs[1]).light(light);
+                    vertexConsumer.vertex(matrix, 0.0F, 0.0F, -0.01F).color(-1).texture(mapData.uvs[0], mapData.uvs[1]).light(light);
                 });
 
                 if (drawDecorations) {
-                    MapRenderState renderState = state.mapRenderState;
-
-                    // vanilla decorations code
-                    int i = 0;
-                    for(MapRenderState.Decoration decoration : renderState.decorations) {
-                        if (decoration.alwaysRendered) {
-                            matrices.push();
-                            matrices.translate((float)decoration.x / 2.0F + 64.0F, (float)decoration.z / 2.0F + 64.0F, -0.02F);
-                            matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees((float)(decoration.rotation * 360) / 16.0F));
-                            matrices.scale(4.0F, 4.0F, 3.0F);
-                            matrices.translate(-0.125F, 0.125F, 0.0F);
-                            Sprite sprite = decoration.sprite;
-                            if (sprite != null) {
-                                float f = (float)i * -0.001F;
-                                queue.submitCustom(matrices, RenderLayers.text(sprite.getAtlasId()), (matrix, vertexConsumer) -> {
-                                    vertexConsumer.vertex(matrix, -1.0F, 1.0F, f).color(-1).texture(sprite.getMinU(), sprite.getMinV()).light(light);
-                                    vertexConsumer.vertex(matrix, 1.0F, 1.0F, f).color(-1).texture(sprite.getMaxU(), sprite.getMinV()).light(light);
-                                    vertexConsumer.vertex(matrix, 1.0F, -1.0F, f).color(-1).texture(sprite.getMaxU(), sprite.getMaxV()).light(light);
-                                    vertexConsumer.vertex(matrix, -1.0F, -1.0F, f).color(-1).texture(sprite.getMinU(), sprite.getMaxV()).light(light);
-                                });
-                                matrices.pop();
-                            }
-
-                            if (decoration.name != null) {
-                                TextRenderer textRenderer = MinecraftClient.getInstance().textRenderer;
-                                float g = (float)textRenderer.getWidth(decoration.name);
-                                float var10000 = 25.0F / g;
-                                Objects.requireNonNull(textRenderer);
-                                float h = MathHelper.clamp(var10000, 0.0F, 6.0F / 9.0F);
-                                matrices.push();
-                                matrices.translate((float)decoration.x / 2.0F + 64.0F - g * h / 2.0F, (float)decoration.z / 2.0F + 64.0F + 4.0F, -0.025F);
-                                matrices.scale(h, h, -1.0F);
-                                matrices.translate(0.0F, 0.0F, 0.1F);
-                                queue.getBatchingQueue(1).submitText(matrices, 0.0F, 0.0F, decoration.name.asOrderedText(), false, TextLayerType.NORMAL, light, -1, Integer.MIN_VALUE, 0);
-                                matrices.pop();
-                            }
-
-                            ++i;
-                        }
-                    }
+                    VanillaRenderHelper.drawDecorations(state.mapRenderState, matrices, queue, light);
                 }
 
             } else {

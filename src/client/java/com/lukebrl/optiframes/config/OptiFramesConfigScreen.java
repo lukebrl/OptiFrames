@@ -29,11 +29,19 @@ public final class OptiFramesConfigScreen {
         ConfigEntryBuilder entryBuilder = builder.entryBuilder();
 
         general.addEntry(entryBuilder.startBooleanToggle(
-                Text.literal("Use OptiFrames Render"),
+                Text.literal("Use OptiFrames Renderer"),
                 OptiFramesManager.isEnabled())
             .setDefaultValue(true)
             .setSaveConsumer(OptiFramesManager::setEnabled)
-            .setTooltip(Text.literal("Enable/disable the map art optimization"))
+            .setTooltip(Text.literal("Toggle OptiFrames Renderer"))
+            .build());
+
+        general.addEntry(entryBuilder.startBooleanToggle(
+                Text.literal("Use Default Item Frame Model"),
+                OptiFramesManager.useDefaultModel())
+            .setDefaultValue(false)
+            .setSaveConsumer(OptiFramesManager::setUseDefaultModel)
+            .setTooltip(Text.literal("Use vanilla item frame model instead of OptiFrames optimized one.\nDisables custom back face and border rendering."))
             .build());
 
         general.addEntry(entryBuilder.startBooleanToggle(
@@ -41,15 +49,15 @@ public final class OptiFramesConfigScreen {
                 OptiFramesManager.isFrameRendered())
             .setDefaultValue(true)
             .setSaveConsumer(OptiFramesManager::setRenderFrame)
-            .setTooltip(Text.literal("Enable/disable rendering of item frame borders"))
+            .setTooltip(Text.literal("Toggle rendering of item frame borders"))
             .build());
 
         general.addEntry(entryBuilder.startBooleanToggle(
-                Text.literal("Render Border Texture"),
-                OptiFramesManager.isTextureRendered())
-            .setDefaultValue(true)
-            .setSaveConsumer(OptiFramesManager::setRenderTexture)
-            .setTooltip(Text.literal("Enable/disable texture on frame borders"))
+                Text.literal("Render Item Frames Back Face"),
+                OptiFramesManager.isBackRendered())
+            .setDefaultValue(false)
+            .setSaveConsumer(OptiFramesManager::setRenderBackFrame)
+            .setTooltip(Text.literal("Toggle rendering of item frame back face.\nOnly works with OptiFrames optimized model."))
             .build());
 
         general.addEntry(entryBuilder.startBooleanToggle(
@@ -57,7 +65,7 @@ public final class OptiFramesConfigScreen {
                 OptiFramesManager.isDecorationsRendered())
             .setDefaultValue(true)
             .setSaveConsumer(OptiFramesManager::setRenderDecorations)
-            .setTooltip(Text.literal("Enable/disable decorations rendering"))
+            .setTooltip(Text.literal("Toggle decorations rendering"))
             .build());
 
         int maxSize = OptiFramesManager.getMaxAtlasSize();
@@ -90,8 +98,9 @@ public final class OptiFramesConfigScreen {
 
             JsonObject json = new JsonObject();
             json.addProperty("enabled", OptiFramesManager.isEnabled());
+            json.addProperty("useDefaultModel", OptiFramesManager.useDefaultModel());
             json.addProperty("renderFrames", OptiFramesManager.isFrameRendered());
-            json.addProperty("renderTexture", OptiFramesManager.isTextureRendered());
+            json.addProperty("renderBackFrame", OptiFramesManager.isBackRendered());
             json.addProperty("renderDecorations", OptiFramesManager.isDecorationsRendered());
             json.addProperty("atlasSize", OptiFramesManager.getAtlasSize());
 

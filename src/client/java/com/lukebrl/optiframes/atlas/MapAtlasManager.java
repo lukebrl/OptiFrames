@@ -48,6 +48,16 @@ public final class MapAtlasManager {
         }
     }
 
+    public static class MapSlotData {
+        public final RenderLayer renderLayer;
+        public final float[] uvs;
+        
+        public MapSlotData(RenderLayer layer, float[] uvs) {
+            this.renderLayer = layer;
+            this.uvs = uvs;
+        }
+    }
+
     private MapAtlasManager() {}
 
     public static void init() {
@@ -131,22 +141,12 @@ public final class MapAtlasManager {
     }
 
     /**
-     * get RenderLayer for given map
+     * get RenderLayer and uvs for given map
     */
-    public static RenderLayer getRenderLayer(MapIdComponent mapId) {
+    public static MapSlotData getMapData(MapIdComponent mapId) {
         AtlasSlot slot = slotMap.get(mapId.id());
         if (slot == null) return null;
-        return slot.page.renderLayer;
-    }
-
-    /**
-     * get UV coords of a map in its atlas page.
-     * Returns [u0, v0, u1, v1]
-    */
-    public static float[] getUVs(MapIdComponent mapId) {
-        AtlasSlot slot = slotMap.get(mapId.id());
-        if (slot == null) return null;
-        return slot.uvs;
+        return new MapSlotData(slot.page.renderLayer, slot.uvs);
     }
 
     /**
