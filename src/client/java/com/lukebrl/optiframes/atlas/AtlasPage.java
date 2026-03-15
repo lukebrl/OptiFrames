@@ -15,7 +15,6 @@ public class AtlasPage {
     final Identifier textureId;
     final RenderLayer renderLayer;
     final IntArrayList freeSlots = new IntArrayList();
-    final IntArrayList dirtySlots = new IntArrayList();
     boolean initialUploadDone = false;
     int usedCount = 0;
 
@@ -32,8 +31,13 @@ public class AtlasPage {
         }
     }
 
-    void close() {
+    public void addFreeSlot(int slotId) {
+        this.freeSlots.push(slotId);
+    }
+
+    public void close() {
         MinecraftClient.getInstance().getTextureManager().destroyTexture(this.textureId);
         this.texture.close();
+        System.out.println("CLOSED PAGE " + this.textureId.getPath());
     }
 }

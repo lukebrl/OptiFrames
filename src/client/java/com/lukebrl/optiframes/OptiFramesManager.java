@@ -102,9 +102,6 @@ public class OptiFramesManager {
                 if (json.has("renderBackFrame")) {
                     renderBackFrame = json.get("renderBackFrame").getAsBoolean();
                 }
-                if (json.has("renderDecorations")) {
-                    renderDecorations = json.get("renderDecorations").getAsBoolean();
-                }
                 if (json.has("atlasSize")) {
                     atlasSize = json.get("atlasSize").getAsInt();
                     atlasSize = Math.max(1024, Math.min(atlasSize, maxAtlasSize));

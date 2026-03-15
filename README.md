@@ -2,7 +2,6 @@
 
 [![Modrinth](https://img.shields.io/modrinth/dt/optiframes?logo=modrinth&label=Modrinth&color=00AF5C)](https://modrinth.com/mod/optiframes)
 [![CurseForge](https://img.shields.io/curseforge/dt/1476042?logo=curseforge&label=CurseForge&color=F16436)](https://www.curseforge.com/minecraft/mc-mods/optiframes)
-<!-- [![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE) -->
 
 A lightweight, client-side Fabric mod that makes large map displays render cleaner and smoother without changing their appearance.
 
@@ -16,7 +15,7 @@ Test are made with Sodium but you can expect same gain without it.
 
 - **Optimized rendering**: hides redundant borders between adjacent maps.
 - **Texture Atlas**: all map textures are packed into a shared atlas, drastically reducing GPU draw calls.
-- **FPS boost**: expect up to **5x FPS increase** with large maps.
+- **FPS boost**: expect up to **9x FPS increase** with large maps.
 - **Map decoration support**: player markers, banners, and other map icons still render correctly.
 - **Lightweight**: designed to work well alongside Sodium and Iris.
 
@@ -32,7 +31,6 @@ You can configure the mod with [Mod Menu](https://modrinth.com/mod/modmenu):
 - **Enable/Disable** the mod entirely
 - **Frame borders** — toggle border rendering between maps for extra performance
 - **Border texture** — toggle the wood texture on borders (solid color when off)
-- **Map decorations** — toggle player markers, banners and other map icons
 - **Atlas size** — choose the atlas texture size, Bigger = more maps per draw call. Default 4096 works great for most setups.
 
 ## Compatibility

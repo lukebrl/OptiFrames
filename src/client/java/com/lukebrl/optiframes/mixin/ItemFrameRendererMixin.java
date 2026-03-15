@@ -1,15 +1,11 @@
 package com.lukebrl.optiframes.mixin;
 
 import com.lukebrl.optiframes.OptiFramesManager;
-import com.lukebrl.optiframes.atlas.MapAtlasManager;
-import com.lukebrl.optiframes.atlas.MapAtlasManager.MapSlotData;
 import com.lukebrl.optiframes.cache.MapFrameCacheManager;
 import com.lukebrl.optiframes.utils.BorderMeshGeometry;
 import com.lukebrl.optiframes.utils.NeighborDirectionMapper;
-import com.lukebrl.optiframes.utils.VanillaRenderHelper;
 
 import net.minecraft.client.render.MapRenderer;
-import net.minecraft.client.render.MapRenderState;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.OverlayTexture;
 import net.minecraft.client.render.RenderLayer;
@@ -22,8 +18,6 @@ import net.minecraft.client.render.model.BlockStateModel;
 import net.minecraft.client.render.state.CameraRenderState;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.block.BlockState;
-import net.minecraft.component.type.MapIdComponent;
-import net.minecraft.item.map.MapState;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
@@ -38,7 +32,6 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import org.joml.Quaternionf;
@@ -91,33 +84,16 @@ public abstract class ItemFrameRendererMixin {
     // cached minecraft client
     private static MinecraftClient MCInstance = null;
 
-    @Shadow @Final
+    @Shadow 
+    @Final
     private MapRenderer mapRenderer;
 
-    @Shadow @Final
+    @Shadow 
+    @Final
     private BlockRenderManager blockRenderManager;
 
     @Shadow
     protected abstract Vec3d getPositionOffset(ItemFrameEntityRenderState state);
-
-    @Redirect(
-        method = "updateRenderState",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/render/MapRenderer;update(Lnet/minecraft/component/type/MapIdComponent;Lnet/minecraft/item/map/MapState;Lnet/minecraft/client/render/MapRenderState;)V")
-    )
-    private void optiframes$redirectMapUpdate(
-        MapRenderer renderer,
-        MapIdComponent mapId,
-        MapState mapState,
-        MapRenderState renderState
-    ) {
-        if (OptiFramesManager.isEnabled()) {
-            // update map in our atlas
-            MapAtlasManager.updateMap(mapId, mapState);
-            VanillaRenderHelper.addDecorations(renderState, mapState);
-        } else {
-            renderer.update(mapId, mapState, renderState);
-        }
-    }
 
     @Inject(method = "render", at = @At("HEAD"), cancellable = true)
     private void optiframes$renderMapEntity(
@@ -240,28 +216,7 @@ public abstract class ItemFrameRendererMixin {
 
         // map rendering
         if (this.mapRenderer != null) {
-
-            MapSlotData mapData = MapAtlasManager.getMapData(state.mapId);
-            
-            boolean drawDecorations = OptiFramesManager.isDecorationsRendered();
-
-            if (mapData != null) {
-                // draw map using atlas
-                queue.submitCustom(matrices, mapData.renderLayer, (matrix, vertexConsumer) -> {
-                    vertexConsumer.vertex(matrix, 0.0F, 128.0F, -0.01F).color(-1).texture(mapData.uvs[0], mapData.uvs[3]).light(light);
-                    vertexConsumer.vertex(matrix, 128.0F, 128.0F, -0.01F).color(-1).texture(mapData.uvs[2], mapData.uvs[3]).light(light);
-                    vertexConsumer.vertex(matrix, 128.0F, 0.0F, -0.01F).color(-1).texture(mapData.uvs[2], mapData.uvs[1]).light(light);
-                    vertexConsumer.vertex(matrix, 0.0F, 0.0F, -0.01F).color(-1).texture(mapData.uvs[0], mapData.uvs[1]).light(light);
-                });
-
-                if (drawDecorations) {
-                    VanillaRenderHelper.drawDecorations(state.mapRenderState, matrices, queue, light);
-                }
-
-            } else {
-                // fallback if atlas not working
-                this.mapRenderer.draw(state.mapRenderState, matrices, queue, drawDecorations, light);
-            }
+            this.mapRenderer.draw(state.mapRenderState, matrices, queue, true, light);
         }
 
         matrices.pop();

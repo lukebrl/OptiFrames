@@ -60,14 +60,6 @@ public final class OptiFramesConfigScreen {
             .setTooltip(Text.literal("Toggle rendering of item frame back face.\nOnly works with OptiFrames optimized model."))
             .build());
 
-        general.addEntry(entryBuilder.startBooleanToggle(
-                Text.literal("Render Decorations"),
-                OptiFramesManager.isDecorationsRendered())
-            .setDefaultValue(true)
-            .setSaveConsumer(OptiFramesManager::setRenderDecorations)
-            .setTooltip(Text.literal("Toggle decorations rendering"))
-            .build());
-
         int maxSize = OptiFramesManager.getMaxAtlasSize();
         java.util.List<Integer> sizeOptions = new java.util.ArrayList<>();
         for (int s = 1024; s <= maxSize; s *= 2) {
@@ -101,7 +93,6 @@ public final class OptiFramesConfigScreen {
             json.addProperty("useDefaultModel", OptiFramesManager.useDefaultModel());
             json.addProperty("renderFrames", OptiFramesManager.isFrameRendered());
             json.addProperty("renderBackFrame", OptiFramesManager.isBackRendered());
-            json.addProperty("renderDecorations", OptiFramesManager.isDecorationsRendered());
             json.addProperty("atlasSize", OptiFramesManager.getAtlasSize());
 
             Files.writeString(CONFIG_FILE, json.toString());

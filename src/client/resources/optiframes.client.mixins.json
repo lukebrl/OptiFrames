@@ -5,7 +5,12 @@
 	"mixins": [],
 	"client": [
 		"ItemFrameEntityMixin",
-		"ItemFrameRendererMixin"
+		"ItemFrameRendererMixin",
+		"MapRenderStateMixin",
+		"MapStateMixin",
+		"MapRendererMixin",
+		"MapTextureMixin",
+		"DrawContextMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
