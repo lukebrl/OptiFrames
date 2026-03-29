@@ -4,29 +4,27 @@ import com.lukebrl.optiframes.OptiFramesManager;
 import com.lukebrl.optiframes.cache.MapFrameCacheManager;
 import com.lukebrl.optiframes.utils.BorderMeshGeometry;
 import com.lukebrl.optiframes.utils.NeighborDirectionMapper;
-
-import net.minecraft.client.render.MapRenderer;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.OverlayTexture;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.render.RenderLayers;
-import net.minecraft.client.render.entity.ItemFrameEntityRenderer;
-import net.minecraft.client.render.entity.state.ItemFrameEntityRenderState;
-import net.minecraft.client.render.command.OrderedRenderCommandQueue;
-import net.minecraft.client.render.model.BlockStateManagers;
-import net.minecraft.client.render.model.BlockStateModel;
-import net.minecraft.client.render.state.CameraRenderState;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.block.BlockState;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.util.math.RotationAxis;
-import net.minecraft.client.render.block.BlockRenderManager;
-import net.minecraft.util.Identifier;
-import net.minecraft.client.util.SpriteIdentifier;
-import net.minecraft.client.texture.Sprite;
-
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.math.Axis;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.MapRenderer;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.block.BlockRenderDispatcher;
+import net.minecraft.client.renderer.block.model.BlockStateModel;
+import net.minecraft.client.renderer.entity.ItemFrameRenderer;
+import net.minecraft.client.renderer.entity.state.ItemFrameRenderState;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
+import net.minecraft.client.renderer.state.CameraRenderState;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
+import net.minecraft.client.resources.model.BlockStateDefinitions;
+import net.minecraft.client.resources.model.Material;
+import net.minecraft.core.Direction;
+import net.minecraft.resources.Identifier;
+import net.minecraft.util.Mth;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -37,7 +35,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.joml.Quaternionf;
 
 
-@Mixin(ItemFrameEntityRenderer.class)
+@Mixin(ItemFrameRenderer.class)
 public abstract class ItemFrameRendererMixin {
 
     private static final int FULLBRIGHT = (15 << 20) | (15 << 4);
@@ -53,36 +51,36 @@ public abstract class ItemFrameRendererMixin {
             float pitch, yaw;
             if (dir.getAxis().isHorizontal()) {
                 pitch = 0.0F;
-                yaw = 180.0F - dir.getPositiveHorizontalDegrees();
+                yaw = 180.0F - dir.toYRot();
             } else {
-                pitch = (float)(-90 * dir.getDirection().offset());
+                pitch = (float)(-90 * dir.getAxisDirection().getStep());
                 yaw = 180.0F;
             }
-            Quaternionf facing = new Quaternionf(RotationAxis.POSITIVE_X.rotationDegrees(pitch));
-            facing.mul(RotationAxis.POSITIVE_Y.rotationDegrees(yaw));
+            Quaternionf facing = new Quaternionf(Axis.XP.rotationDegrees(pitch));
+            facing.mul(Axis.YP.rotationDegrees(yaw));
             FACING_CACHE[dir.ordinal()] = facing;
         }
         for (int rot = 0; rot < 4; rot++) {
-            MAP_Z_CACHE[rot] = RotationAxis.POSITIVE_Z.rotationDegrees(rot * 90.0F + 180.0F);
+            MAP_Z_CACHE[rot] = Axis.ZP.rotationDegrees(rot * 90.0F + 180.0F);
         }
     }
 
     // get birch planks texture from atlas for frame borders
-    private static final Identifier BLOCK_ATLAS_TEXTURE = Identifier.ofVanilla("textures/atlas/blocks.png");
-    private static final RenderLayer BORDER_LAYER = RenderLayers.entitySolidZOffsetForward(BLOCK_ATLAS_TEXTURE);
+    private static final Identifier BLOCK_ATLAS_TEXTURE = Identifier.withDefaultNamespace("textures/atlas/blocks.png");
+    private static final RenderType BORDER_LAYER = RenderTypes.entitySolidZOffsetForward(BLOCK_ATLAS_TEXTURE);
 
-    private static final SpriteIdentifier BIRCH_SPRITE_ID = new SpriteIdentifier(BLOCK_ATLAS_TEXTURE, Identifier.ofVanilla("block/birch_planks"));
-    private static final SpriteIdentifier FRAME_SPRITE_ID = new SpriteIdentifier(BLOCK_ATLAS_TEXTURE, Identifier.ofVanilla("block/item_frame"));
-    private static final SpriteIdentifier GLOW_FRAME_SPRITE_ID = new SpriteIdentifier(BLOCK_ATLAS_TEXTURE, Identifier.ofVanilla("block/glow_item_frame"));
+    private static final Material BIRCH_SPRITE_ID = new Material(BLOCK_ATLAS_TEXTURE, Identifier.withDefaultNamespace("block/birch_planks"));
+    private static final Material FRAME_SPRITE_ID = new Material(BLOCK_ATLAS_TEXTURE, Identifier.withDefaultNamespace("block/item_frame"));
+    private static final Material GLOW_FRAME_SPRITE_ID = new Material(BLOCK_ATLAS_TEXTURE, Identifier.withDefaultNamespace("block/glow_item_frame"));
 
     // cached sprites
     private static boolean spritesInitialized = false;
-    private static Sprite birchSprite = null;
-    private static Sprite frameSprite = null;
-    private static Sprite glowFrameSprite = null;
+    private static TextureAtlasSprite birchSprite = null;
+    private static TextureAtlasSprite frameSprite = null;
+    private static TextureAtlasSprite glowFrameSprite = null;
 
     // cached minecraft client
-    private static MinecraftClient MCInstance = null;
+    private static Minecraft MCInstance = null;
 
     @Shadow 
     @Final
@@ -90,16 +88,16 @@ public abstract class ItemFrameRendererMixin {
 
     @Shadow 
     @Final
-    private BlockRenderManager blockRenderManager;
+    private BlockRenderDispatcher blockRenderer;
 
     @Shadow
-    protected abstract Vec3d getPositionOffset(ItemFrameEntityRenderState state);
+    protected abstract Vec3 getRenderOffset(ItemFrameRenderState state);
 
-    @Inject(method = "render", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "submit", at = @At("HEAD"), cancellable = true)
     private void optiframes$renderMapEntity(
-        ItemFrameEntityRenderState state,
-        MatrixStack matrices,
-        OrderedRenderCommandQueue queue,
+        ItemFrameRenderState state,
+        PoseStack matrices,
+        SubmitNodeCollector queue,
         CameraRenderState camera,
         CallbackInfo ci
     ) {
@@ -108,47 +106,47 @@ public abstract class ItemFrameRendererMixin {
 
         // cache minecraft instance
         if (MCInstance == null) {
-            MCInstance = MinecraftClient.getInstance();
+            MCInstance = Minecraft.getInstance();
         }
 
         ci.cancel();
 
-        matrices.push();
+        matrices.pushPose();
 
         // positioning
-        Direction direction = state.facing;
-        Vec3d vec3d = this.getPositionOffset(state);
+        Direction direction = state.direction;
+        Vec3 vec3d = this.getRenderOffset(state);
         matrices.translate(
-            -vec3d.getX() + direction.getOffsetX() * 0.46875D, 
-            -vec3d.getY() + (double)direction.getOffsetY() * 0.46875D, 
-            -vec3d.getZ() + (double)direction.getOffsetZ() * 0.46875D
+            -vec3d.x() + direction.getStepX() * 0.46875D, 
+            -vec3d.y() + (double)direction.getStepY() * 0.46875D, 
+            -vec3d.z() + (double)direction.getStepZ() * 0.46875D
         );
 
         int rotation = state.rotation % 4;
-        int light = state.glow ? FULLBRIGHT : state.light;
+        int light = state.isGlowFrame ? FULLBRIGHT : state.lightCoords;
         boolean useDefault = OptiFramesManager.useDefaultModel();
         boolean renderFrame = OptiFramesManager.isFrameRendered();
 
         // if vanilla frame model is used
         if (useDefault) {
             // facing rotation only as vanilla model renders before map rotation
-            matrices.multiply(FACING_CACHE[direction.ordinal()]);
+            matrices.mulPose(FACING_CACHE[direction.ordinal()]);
 
             // render vanilla frame model
-            if (!state.invisible) {
-                BlockState blockState = BlockStateManagers.getStateForItemFrame(state.glow, true);
-                BlockStateModel model = this.blockRenderManager.getModel(blockState);
-                matrices.push();
+            if (!state.isInvisible) {
+                BlockState blockState = BlockStateDefinitions.getItemFrameFakeState(state.isGlowFrame, true);
+                BlockStateModel model = this.blockRenderer.getBlockModel(blockState);
+                matrices.pushPose();
                 matrices.translate(-0.5F, -0.5F, -0.5F);
-                queue.submitBlockStateModel(matrices, BORDER_LAYER, model, 1.0F, 1.0F, 1.0F, state.light, OverlayTexture.DEFAULT_UV, state.outlineColor);
-                matrices.pop();
+                queue.submitBlockModel(matrices, BORDER_LAYER, model, 1.0F, 1.0F, 1.0F, state.lightCoords, OverlayTexture.NO_OVERLAY, state.outlineColor);
+                matrices.popPose();
             }
 
-            matrices.translate(0.0F, 0.0F, state.invisible ? 0.5F : 0.4375F);
-            matrices.multiply(MAP_Z_CACHE[rotation]);
+            matrices.translate(0.0F, 0.0F, state.isInvisible ? 0.5F : 0.4375F);
+            matrices.mulPose(MAP_Z_CACHE[rotation]);
         } else {
-            matrices.multiply(FACING_CACHE[direction.ordinal()]);
-            matrices.translate(0.0F, 0.0F, state.invisible || !renderFrame ? 0.49F : 0.4375F);
+            matrices.mulPose(FACING_CACHE[direction.ordinal()]);
+            matrices.translate(0.0F, 0.0F, state.isInvisible || !renderFrame ? 0.49F : 0.4375F);
         }
 
         // map scaling logic
@@ -157,18 +155,18 @@ public abstract class ItemFrameRendererMixin {
         matrices.translate(-64.0F, -64.0F, 0.0F); // center map
 
         // custom frame borders
-        if (!useDefault && !state.invisible && renderFrame) {
+        if (!useDefault && !state.isInvisible && renderFrame) {
             if (!spritesInitialized) {
-                birchSprite = MCInstance.getAtlasManager().getSprite(BIRCH_SPRITE_ID);
-                frameSprite = MCInstance.getAtlasManager().getSprite(FRAME_SPRITE_ID);
-                glowFrameSprite = MCInstance.getAtlasManager().getSprite(GLOW_FRAME_SPRITE_ID);
+                birchSprite = MCInstance.getAtlasManager().get(BIRCH_SPRITE_ID);
+                frameSprite = MCInstance.getAtlasManager().get(FRAME_SPRITE_ID);
+                glowFrameSprite = MCInstance.getAtlasManager().get(GLOW_FRAME_SPRITE_ID);
                 spritesInitialized = true;
             }
 
             // item frame entity coordinate
-            int bx = MathHelper.floor(state.x);
-            int by = MathHelper.floor(state.y);
-            int bz = MathHelper.floor(state.z);
+            int bx = Mth.floor(state.x);
+            int by = Mth.floor(state.y);
+            int bz = Mth.floor(state.z);
 
             // check neighbor
             boolean hasTop = MapFrameCacheManager.hasNeighbor(
@@ -189,19 +187,19 @@ public abstract class ItemFrameRendererMixin {
             );
 
             // draw needed borders
-            queue.submitCustom(matrices, BORDER_LAYER, (entry, vc) -> {
-                if (!hasTop) BorderMeshGeometry.drawQuad(vc, entry, BorderMeshGeometry.TOP_VERTS, state.light, birchSprite, BorderMeshGeometry.TOP_UV, BorderMeshGeometry.TOP_NORMAL);
-                if (!hasBottom) BorderMeshGeometry.drawQuad(vc, entry, BorderMeshGeometry.BOTTOM_VERTS, state.light, birchSprite, BorderMeshGeometry.BOTTOM_UV, BorderMeshGeometry.BOTTOM_NORMAL);
-                if (!hasLeft) BorderMeshGeometry.drawQuad(vc, entry, BorderMeshGeometry.WEST_VERTS, state.light, birchSprite, BorderMeshGeometry.WEST_UV, BorderMeshGeometry.WEST_NORMAL);
-                if (!hasRight) BorderMeshGeometry.drawQuad(vc, entry, BorderMeshGeometry.EAST_VERTS, state.light, birchSprite, BorderMeshGeometry.EAST_UV, BorderMeshGeometry.EAST_NORMAL);
+            queue.submitCustomGeometry(matrices, BORDER_LAYER, (entry, vc) -> {
+                if (!hasTop) BorderMeshGeometry.drawQuad(vc, entry, BorderMeshGeometry.TOP_VERTS, state.lightCoords, birchSprite, BorderMeshGeometry.TOP_UV, BorderMeshGeometry.TOP_NORMAL);
+                if (!hasBottom) BorderMeshGeometry.drawQuad(vc, entry, BorderMeshGeometry.BOTTOM_VERTS, state.lightCoords, birchSprite, BorderMeshGeometry.BOTTOM_UV, BorderMeshGeometry.BOTTOM_NORMAL);
+                if (!hasLeft) BorderMeshGeometry.drawQuad(vc, entry, BorderMeshGeometry.WEST_VERTS, state.lightCoords, birchSprite, BorderMeshGeometry.WEST_UV, BorderMeshGeometry.WEST_NORMAL);
+                if (!hasRight) BorderMeshGeometry.drawQuad(vc, entry, BorderMeshGeometry.EAST_VERTS, state.lightCoords, birchSprite, BorderMeshGeometry.EAST_UV, BorderMeshGeometry.EAST_NORMAL);
             
                 // back face rendering
                 if (OptiFramesManager.isBackRendered()) {
-                    BorderMeshGeometry.drawQuad(vc, entry, BorderMeshGeometry.BACK_INNER_VERTS, state.light, state.glow ? glowFrameSprite : frameSprite, BorderMeshGeometry.BACK_INNER_UV, BorderMeshGeometry.BACK_NORMAL);
-                    BorderMeshGeometry.drawQuad(vc, entry, BorderMeshGeometry.BACK_BORDER_TOP_VERTS, state.light, birchSprite, BorderMeshGeometry.BACK_BORDER_TOP_UV, BorderMeshGeometry.BACK_NORMAL);
-                    BorderMeshGeometry.drawQuad(vc, entry, BorderMeshGeometry.BACK_BORDER_EAST_VERTS, state.light, birchSprite, BorderMeshGeometry.BACK_BORDER_EAST_UV, BorderMeshGeometry.BACK_NORMAL);
-                    BorderMeshGeometry.drawQuad(vc, entry, BorderMeshGeometry.BACK_BORDER_BOTTOM_VERTS, state.light, birchSprite, BorderMeshGeometry.BACK_BORDER_BOTTOM_UV, BorderMeshGeometry.BACK_NORMAL);
-                    BorderMeshGeometry.drawQuad(vc, entry, BorderMeshGeometry.BACK_BORDER_WEST_VERTS, state.light, birchSprite, BorderMeshGeometry.BACK_BORDER_WEST_UV, BorderMeshGeometry.BACK_NORMAL);
+                    BorderMeshGeometry.drawQuad(vc, entry, BorderMeshGeometry.BACK_INNER_VERTS, state.lightCoords, state.isGlowFrame ? glowFrameSprite : frameSprite, BorderMeshGeometry.BACK_INNER_UV, BorderMeshGeometry.BACK_NORMAL);
+                    BorderMeshGeometry.drawQuad(vc, entry, BorderMeshGeometry.BACK_BORDER_TOP_VERTS, state.lightCoords, birchSprite, BorderMeshGeometry.BACK_BORDER_TOP_UV, BorderMeshGeometry.BACK_NORMAL);
+                    BorderMeshGeometry.drawQuad(vc, entry, BorderMeshGeometry.BACK_BORDER_EAST_VERTS, state.lightCoords, birchSprite, BorderMeshGeometry.BACK_BORDER_EAST_UV, BorderMeshGeometry.BACK_NORMAL);
+                    BorderMeshGeometry.drawQuad(vc, entry, BorderMeshGeometry.BACK_BORDER_BOTTOM_VERTS, state.lightCoords, birchSprite, BorderMeshGeometry.BACK_BORDER_BOTTOM_UV, BorderMeshGeometry.BACK_NORMAL);
+                    BorderMeshGeometry.drawQuad(vc, entry, BorderMeshGeometry.BACK_BORDER_WEST_VERTS, state.lightCoords, birchSprite, BorderMeshGeometry.BACK_BORDER_WEST_UV, BorderMeshGeometry.BACK_NORMAL);
                 }
             });
         }
@@ -210,15 +208,15 @@ public abstract class ItemFrameRendererMixin {
         // it's now here to avoid rotating the frame model
         if (!useDefault) {
             matrices.translate(64.0F, 64.0F, 0.0F);
-            matrices.multiply(MAP_Z_CACHE[rotation]);
+            matrices.mulPose(MAP_Z_CACHE[rotation]);
             matrices.translate(-64.0F, -64.0F, 0.0F);
         }
 
         // map rendering
         if (this.mapRenderer != null) {
-            this.mapRenderer.draw(state.mapRenderState, matrices, queue, true, light);
+            this.mapRenderer.render(state.mapRenderState, matrices, queue, true, light);
         }
 
-        matrices.pop();
+        matrices.popPose();
     }
 }

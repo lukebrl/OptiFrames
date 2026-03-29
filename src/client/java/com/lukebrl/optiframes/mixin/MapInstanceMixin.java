@@ -1,11 +1,5 @@
 package com.lukebrl.optiframes.mixin;
 
-import net.minecraft.client.texture.MapTextureManager;
-import net.minecraft.client.texture.NativeImageBackedTexture;
-import net.minecraft.component.type.MapIdComponent;
-import net.minecraft.item.map.MapState;
-import net.minecraft.util.Identifier;
-
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Mutable;
@@ -17,49 +11,53 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import com.lukebrl.optiframes.OptiFramesManager;
 import com.lukebrl.optiframes.atlas.AtlasSlot;
 import com.lukebrl.optiframes.atlas.MapAtlasManager;
-
+import net.minecraft.client.renderer.texture.DynamicTexture;
+import net.minecraft.client.resources.MapTextureManager;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.level.saveddata.maps.MapId;
+import net.minecraft.world.level.saveddata.maps.MapItemSavedData;
 import org.spongepowered.asm.mixin.injection.At;
 
 
 
 
-@Mixin(targets = "net.minecraft.client.texture.MapTextureManager$MapTexture")
-public class MapTextureMixin {
+@Mixin(targets = "net.minecraft.client.resources.MapTextureManager$MapInstance")
+public class MapInstanceMixin {
 
     @Shadow
-    private MapState state;
+    private MapItemSavedData data;
     
     @Shadow
-    private boolean needsUpdate;
+    private boolean requiresUpload;
 
     @Shadow
     @Final
     @Mutable
-    private NativeImageBackedTexture texture;
+    private DynamicTexture texture;
 
     @Shadow
     @Final
     @Mutable
-    Identifier textureId;
+    Identifier location;
 
     @Unique
-    private MapIdComponent optiframes$mapId;
+    private MapId optiframes$mapId;
 
 
     @Inject(method = "<init>", at = @At("TAIL"))
-    private void optiframes$initAtlasTexture(MapTextureManager manager, int id, MapState state, CallbackInfo ci) {
-        this.optiframes$mapId = new MapIdComponent(id);
+    private void optiframes$initAtlasTexture(MapTextureManager manager, int id, MapItemSavedData state, CallbackInfo ci) {
+        this.optiframes$mapId = new MapId(id);
         MapAtlasManager.updateMap(optiframes$mapId, state);
     }
 
 
-    @Inject(method = "updateTexture", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "updateTextureIfNeeded", at = @At("HEAD"), cancellable = true)
     private void optiframes$UpdateMapTexture(CallbackInfo ci) {
-        if (OptiFramesManager.isEnabled() && this.needsUpdate) {
+        if (OptiFramesManager.isEnabled() && this.requiresUpload) {
             ci.cancel();
 
-            MapAtlasManager.updateMap(this.optiframes$mapId, this.state);
-            this.needsUpdate = false;
+            MapAtlasManager.updateMap(this.optiframes$mapId, this.data);
+            this.requiresUpload = false;
         }
     }
 

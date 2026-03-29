@@ -4,16 +4,15 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 
 import com.lukebrl.optiframes.interfaces.IMapRenderState;
-
-import net.minecraft.client.render.MapRenderState;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.util.Identifier;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.state.MapRenderState;
+import net.minecraft.resources.Identifier;
 
 @Mixin(MapRenderState.class)
 public abstract class MapRenderStateMixin implements IMapRenderState {
     
     @Unique
-    private RenderLayer optiframes$atlasRenderLayer;
+    private RenderType optiframes$atlasRenderLayer;
 
     @Unique
     private float[] optiframes$uvs;
@@ -28,12 +27,12 @@ public abstract class MapRenderStateMixin implements IMapRenderState {
     private int optiframes$atlasY;
 
     @Override
-    public void optiframes$setAtlasRenderLayer(RenderLayer renderLayer) {
+    public void optiframes$setAtlasRenderLayer(RenderType renderLayer) {
         this.optiframes$atlasRenderLayer = renderLayer;
     }
     
     @Override
-    public RenderLayer optiframes$getAtlasRenderLayer() {
+    public RenderType optiframes$getAtlasRenderLayer() {
         return this.optiframes$atlasRenderLayer;
     }
 

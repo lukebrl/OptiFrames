@@ -8,21 +8,20 @@ import org.spongepowered.asm.mixin.injection.invoke.arg.Args;
 import com.lukebrl.optiframes.OptiFramesManager;
 import com.lukebrl.optiframes.atlas.MapAtlasManager;
 import com.lukebrl.optiframes.interfaces.IMapRenderState;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.renderer.state.MapRenderState;
+import net.minecraft.client.renderer.texture.AbstractTexture;
+import net.minecraft.resources.Identifier;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.render.MapRenderState;
-import net.minecraft.client.texture.AbstractTexture;
-import net.minecraft.util.Identifier;
-
-@Mixin(DrawContext.class)
-public class DrawContextMixin {
+@Mixin(GuiGraphics.class)
+public class GuiGraphicsMixin {
 
     @ModifyArgs(
-        method = "drawMap",
+        method = "submitMapRenderState",
         at = @At(
             value = "INVOKE",
-            target = "Lnet/minecraft/client/gui/DrawContext;drawTexturedQuad(Lcom/mojang/blaze3d/pipeline/RenderPipeline;Lcom/mojang/blaze3d/textures/GpuTextureView;Lnet/minecraft/client/gl/GpuSampler;IIIIFFFFI)V",
+            target = "Lnet/minecraft/client/gui/GuiGraphics;submitBlit(Lcom/mojang/blaze3d/pipeline/RenderPipeline;Lcom/mojang/blaze3d/textures/GpuTextureView;Lcom/mojang/blaze3d/textures/GpuSampler;IIIIFFFFI)V",
             ordinal = 0
         )
     )
@@ -40,11 +39,11 @@ public class DrawContextMixin {
         }
 
         // get atlas texture and swap texture view and sampler
-        AbstractTexture atlasTexture = MinecraftClient.getInstance().getTextureManager().getTexture(atlasTextureId);
+        AbstractTexture atlasTexture = Minecraft.getInstance().getTextureManager().getTexture(atlasTextureId);
         if (atlasTexture == null) {
             return;
         }
-        args.set(1, atlasTexture.getGlTextureView());
+        args.set(1, atlasTexture.getTextureView());
         args.set(2, atlasTexture.getSampler());
 
         // swap UV coordinates

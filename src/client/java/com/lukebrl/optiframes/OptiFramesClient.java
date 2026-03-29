@@ -2,7 +2,7 @@ package com.lukebrl.optiframes;
 
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 
 import com.lukebrl.optiframes.atlas.MapAtlasManager;
 import com.lukebrl.optiframes.cache.MapFrameCacheManager;
@@ -23,7 +23,7 @@ public class OptiFramesClient implements ClientModInitializer {
 		MapAtlasManager.init();
 		
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
-			MinecraftClient.getInstance().execute(() -> {
+			Minecraft.getInstance().execute(() -> {
 				MapAtlasManager.clear();
 			});
 		});

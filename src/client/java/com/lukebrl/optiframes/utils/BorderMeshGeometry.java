@@ -1,10 +1,10 @@
 package com.lukebrl.optiframes.utils;
 
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import org.joml.Vector3f;
-import net.minecraft.client.render.VertexConsumer;
-import net.minecraft.client.render.OverlayTexture;
-import net.minecraft.client.texture.Sprite;
-import net.minecraft.client.util.math.MatrixStack;
 
 
 public final class BorderMeshGeometry {
@@ -101,35 +101,35 @@ public final class BorderMeshGeometry {
 
     public static void drawQuad(
         VertexConsumer vc,
-        MatrixStack.Entry entry,
+        PoseStack.Pose entry,
         Vector3f[] verts,
         int light,
-        Sprite sprite,
+        TextureAtlasSprite sprite,
         float[] uvNorm,
         Vector3f normal
     ) {
         // map normalized UVs to sprite atlas coordinates
-        float u0 = sprite.getFrameU(uvNorm[0]);
-        float v0 = sprite.getFrameV(uvNorm[1]);
-        float u1 = sprite.getFrameU(uvNorm[2]);
-        float v1 = sprite.getFrameV(uvNorm[3]);
+        float u0 = sprite.getU(uvNorm[0]);
+        float v0 = sprite.getV(uvNorm[1]);
+        float u1 = sprite.getU(uvNorm[2]);
+        float v1 = sprite.getV(uvNorm[3]);
 
-        vc.vertex(entry, verts[0].x, verts[0].y, verts[0].z)
-            .color(255, 255, 255, 255).texture(u0, v0)
-            .overlay(OverlayTexture.DEFAULT_UV).light(light)
-            .normal(entry, normal.x, normal.y, normal.z);
-        vc.vertex(entry, verts[1].x, verts[1].y, verts[1].z)
-            .color(255, 255, 255, 255).texture(u1, v0)
-            .overlay(OverlayTexture.DEFAULT_UV).light(light)
-            .normal(entry, normal.x, normal.y, normal.z);
-        vc.vertex(entry, verts[2].x, verts[2].y, verts[2].z)
-            .color(255, 255, 255, 255).texture(u1, v1)
-            .overlay(OverlayTexture.DEFAULT_UV).light(light)
-            .normal(entry, normal.x, normal.y, normal.z);
-        vc.vertex(entry, verts[3].x, verts[3].y, verts[3].z)
-            .color(255, 255, 255, 255).texture(u0, v1)
-            .overlay(OverlayTexture.DEFAULT_UV).light(light)
-            .normal(entry, normal.x, normal.y, normal.z);
+        vc.addVertex(entry, verts[0].x, verts[0].y, verts[0].z)
+            .setColor(255, 255, 255, 255).setUv(u0, v0)
+            .setOverlay(OverlayTexture.NO_OVERLAY).setLight(light)
+            .setNormal(entry, normal.x, normal.y, normal.z);
+        vc.addVertex(entry, verts[1].x, verts[1].y, verts[1].z)
+            .setColor(255, 255, 255, 255).setUv(u1, v0)
+            .setOverlay(OverlayTexture.NO_OVERLAY).setLight(light)
+            .setNormal(entry, normal.x, normal.y, normal.z);
+        vc.addVertex(entry, verts[2].x, verts[2].y, verts[2].z)
+            .setColor(255, 255, 255, 255).setUv(u1, v1)
+            .setOverlay(OverlayTexture.NO_OVERLAY).setLight(light)
+            .setNormal(entry, normal.x, normal.y, normal.z);
+        vc.addVertex(entry, verts[3].x, verts[3].y, verts[3].z)
+            .setColor(255, 255, 255, 255).setUv(u0, v1)
+            .setOverlay(OverlayTexture.NO_OVERLAY).setLight(light)
+            .setNormal(entry, normal.x, normal.y, normal.z);
 
     }
 }

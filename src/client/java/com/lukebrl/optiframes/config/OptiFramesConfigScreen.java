@@ -3,8 +3,8 @@ package com.lukebrl.optiframes.config;
 import me.shedaniel.clothconfig2.api.ConfigBuilder;
 import me.shedaniel.clothconfig2.api.ConfigCategory;
 import me.shedaniel.clothconfig2.api.ConfigEntryBuilder;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.text.Text;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
 import com.lukebrl.optiframes.OptiFramesManager;
 import com.google.gson.JsonObject;
 import java.nio.file.Files;
@@ -22,42 +22,42 @@ public final class OptiFramesConfigScreen {
     public static Screen createConfigScreen(Screen parent) {
         ConfigBuilder builder = ConfigBuilder.create()
             .setParentScreen(parent)
-            .setTitle(Text.literal("OptiFrames"))
+            .setTitle(Component.literal("OptiFrames"))
             .setSavingRunnable(OptiFramesConfigScreen::saveConfig);
 
-        ConfigCategory general = builder.getOrCreateCategory(Text.literal("General"));
+        ConfigCategory general = builder.getOrCreateCategory(Component.literal("General"));
         ConfigEntryBuilder entryBuilder = builder.entryBuilder();
 
         general.addEntry(entryBuilder.startBooleanToggle(
-                Text.literal("Use OptiFrames Renderer"),
+                Component.literal("Use OptiFrames Renderer"),
                 OptiFramesManager.isEnabled())
             .setDefaultValue(true)
             .setSaveConsumer(OptiFramesManager::setEnabled)
-            .setTooltip(Text.literal("Toggle OptiFrames Renderer"))
+            .setTooltip(Component.literal("Toggle OptiFrames Renderer"))
             .build());
 
         general.addEntry(entryBuilder.startBooleanToggle(
-                Text.literal("Use Default Item Frame Model"),
+                Component.literal("Use Default Item Frame Model"),
                 OptiFramesManager.useDefaultModel())
             .setDefaultValue(false)
             .setSaveConsumer(OptiFramesManager::setUseDefaultModel)
-            .setTooltip(Text.literal("Use vanilla item frame model instead of OptiFrames optimized one.\nDisables custom back face and border rendering."))
+            .setTooltip(Component.literal("Use vanilla item frame model instead of OptiFrames optimized one.\nDisables custom back face and border rendering."))
             .build());
 
         general.addEntry(entryBuilder.startBooleanToggle(
-                Text.literal("Render Frames Border"),
+                Component.literal("Render Frames Border"),
                 OptiFramesManager.isFrameRendered())
             .setDefaultValue(true)
             .setSaveConsumer(OptiFramesManager::setRenderFrame)
-            .setTooltip(Text.literal("Toggle rendering of item frame borders"))
+            .setTooltip(Component.literal("Toggle rendering of item frame borders"))
             .build());
 
         general.addEntry(entryBuilder.startBooleanToggle(
-                Text.literal("Render Item Frames Back Face"),
+                Component.literal("Render Item Frames Back Face"),
                 OptiFramesManager.isBackRendered())
             .setDefaultValue(false)
             .setSaveConsumer(OptiFramesManager::setRenderBackFrame)
-            .setTooltip(Text.literal("Toggle rendering of item frame back face.\nOnly works with OptiFrames optimized model."))
+            .setTooltip(Component.literal("Toggle rendering of item frame back face.\nOnly works with OptiFrames optimized model."))
             .build());
 
         int maxSize = OptiFramesManager.getMaxAtlasSize();
@@ -68,7 +68,7 @@ public final class OptiFramesConfigScreen {
         Integer[] sizeArray = sizeOptions.toArray(new Integer[0]);
 
         general.addEntry(entryBuilder.startSelector(
-                Text.literal("Atlas Size"),
+                Component.literal("Atlas Size"),
                 sizeArray,
                 (Integer) OptiFramesManager.getAtlasSize())
             .setDefaultValue(4096)
@@ -76,9 +76,9 @@ public final class OptiFramesConfigScreen {
                 OptiFramesManager.setAtlasSize(val);
             })
             .setNameProvider(val -> {
-                return Text.literal(val + "x" + val + (val == 4096 ? " [Recommended]" : ""));
+                return Component.literal(val + "x" + val + (val == 4096 ? " [Recommended]" : ""));
             })
-            .setTooltip(Text.literal("Atlas texture size.\nBigger = more maps per draw call.\nRequires world rejoin to apply.\nmax: " + maxSize + "x" + maxSize))
+            .setTooltip(Component.literal("Atlas texture size.\nBigger = more maps per draw call.\nRequires world rejoin to apply.\nmax: " + maxSize + "x" + maxSize))
             .build());
 
         return builder.build();

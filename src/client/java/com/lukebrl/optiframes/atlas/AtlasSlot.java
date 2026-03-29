@@ -1,6 +1,6 @@
 package com.lukebrl.optiframes.atlas;
 
-import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.renderer.rendertype.RenderType;
 
 public class AtlasSlot {
     final AtlasPage page;
@@ -22,7 +22,7 @@ public class AtlasSlot {
         this.uvs = new float[]{u0, v0, u1, v1};
     }
 
-    public RenderLayer getRenderLayer() {
+    public RenderType getRenderLayer() {
         return this.page.renderLayer;
     }
 

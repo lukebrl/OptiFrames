@@ -7,10 +7,10 @@
 		"ItemFrameEntityMixin",
 		"ItemFrameRendererMixin",
 		"MapRenderStateMixin",
-		"MapStateMixin",
+		"MapInstanceMixin",
 		"MapRendererMixin",
-		"MapTextureMixin",
-		"DrawContextMixin"
+		"MapItemSavedDataMixin",
+		"GuiGraphicsMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

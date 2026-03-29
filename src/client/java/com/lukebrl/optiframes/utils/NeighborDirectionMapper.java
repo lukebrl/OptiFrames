@@ -1,7 +1,7 @@
 package com.lukebrl.optiframes.utils;
 
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 
 public final class NeighborDirectionMapper {
 
@@ -39,9 +39,9 @@ public final class NeighborDirectionMapper {
     public static long getNeighborPos(int x, int y, int z, Direction facing, int border) {
         Direction offsetDir = DIRECTION_LOOKUP[facing.ordinal()][border];
         return BlockPos.asLong(
-            x + offsetDir.getOffsetX(),
-            y + offsetDir.getOffsetY(),
-            z + offsetDir.getOffsetZ()
+            x + offsetDir.getStepX(),
+            y + offsetDir.getStepY(),
+            z + offsetDir.getStepZ()
         );
     }
 }

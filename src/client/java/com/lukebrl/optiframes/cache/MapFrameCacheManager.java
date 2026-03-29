@@ -1,10 +1,9 @@
 package com.lukebrl.optiframes.cache;
 
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientEntityEvents;
-import net.minecraft.entity.decoration.ItemFrameEntity;
-import net.minecraft.item.Items;
-import net.minecraft.util.math.Direction;
-
+import net.minecraft.core.Direction;
+import net.minecraft.world.entity.decoration.ItemFrame;
+import net.minecraft.world.item.Items;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMaps;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
@@ -19,26 +18,26 @@ public final class MapFrameCacheManager {
 
     public static void init() {
         ClientEntityEvents.ENTITY_LOAD.register((entity, world) -> {
-            if (entity instanceof ItemFrameEntity frame) {
+            if (entity instanceof ItemFrame frame) {
                 updateFrame(frame);
             }
         });
 
         ClientEntityEvents.ENTITY_UNLOAD.register((entity, world) -> {
-            if (entity instanceof ItemFrameEntity frame) {
-                CACHE.remove(frame.getBlockPos().asLong());
+            if (entity instanceof ItemFrame frame) {
+                CACHE.remove(frame.getPos().asLong());
             }
         });
     }
 
-    public static void onFrameItemChanged(ItemFrameEntity frame) {
+    public static void onFrameItemChanged(ItemFrame frame) {
         updateFrame(frame);
     }
 
-    private static void updateFrame(ItemFrameEntity frame) {
-        long pos = frame.getBlockPos().asLong();
-        if (frame.getHeldItemStack().isOf(Items.FILLED_MAP)) {
-            CACHE.put(pos, frame.getHorizontalFacing());
+    private static void updateFrame(ItemFrame frame) {
+        long pos = frame.blockPosition().asLong();
+        if (frame.getItem().is(Items.FILLED_MAP)) {
+            CACHE.put(pos, frame.getDirection());
         } else {
             CACHE.remove(pos);
         }

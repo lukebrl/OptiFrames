@@ -1,17 +1,15 @@
 package com.lukebrl.optiframes.atlas;
 
-import net.minecraft.block.MapColor;
-import net.minecraft.client.texture.NativeImage;
-import net.minecraft.component.type.MapIdComponent;
-import net.minecraft.item.map.MapState;
-
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.CRC32;
-
+import net.minecraft.world.level.material.MapColor;
+import net.minecraft.world.level.saveddata.maps.MapId;
+import net.minecraft.world.level.saveddata.maps.MapItemSavedData;
 import com.lukebrl.optiframes.interfaces.IMapState;
+import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.systems.RenderSystem;
 
 /**
@@ -41,7 +39,7 @@ public final class MapAtlasManager {
     static {
         // build lookup table for MapColor byte -> ARGB conversion
         for (int i = 0; i < 256; i++) {
-            COLOR_LUT[i] = MapColor.getRenderColor(i);
+            COLOR_LUT[i] = MapColor.getColorFromPackedId(i);
         }
     }
 
@@ -63,7 +61,7 @@ public final class MapAtlasManager {
         return crc.getValue();
     }
 
-    public static AtlasSlot updateMap(MapIdComponent mapId, MapState mapState) {
+    public static AtlasSlot updateMap(MapId mapId, MapItemSavedData mapState) {
         int id = mapId.id();
 
         AtlasSlot slot = slotMap.get(id);
@@ -123,7 +121,7 @@ public final class MapAtlasManager {
 
 
     private static void renderMapToAtlas(AtlasSlot slot, byte[] colors) {
-        NativeImage image = slot.page.texture.getImage();
+        NativeImage image = slot.page.texture.getPixels();
         if (image == null) return;
 
         int baseX = (slot.slotIndex % SLOTS_PER_ROW) * MAP_SIZE;
@@ -133,7 +131,7 @@ public final class MapAtlasManager {
             int rowOffset = z * MAP_SIZE;
             int imgY = baseY + z;
             for (int x = 0; x < MAP_SIZE; x++) {
-                image.setColorArgb(baseX + x, imgY, COLOR_LUT[colors[rowOffset + x] & 0xFF]);
+                image.setPixel(baseX + x, imgY, COLOR_LUT[colors[rowOffset + x] & 0xFF]);
             }
         }
 
@@ -143,13 +141,13 @@ public final class MapAtlasManager {
             slot.page.initialUploadDone = true;
         } else {
             RenderSystem.getDevice().createCommandEncoder().writeToTexture(
-                slot.page.texture.getGlTexture(), image, 0, 0, 
+                slot.page.texture.getTexture(), image, 0, 0, 
                 baseX, baseY, MAP_SIZE, MAP_SIZE, baseX, baseY
             );
         }
     }
 
-    static public AtlasSlot geAtlasSlot(MapIdComponent mapId) {
+    static public AtlasSlot geAtlasSlot(MapId mapId) {
         int id = mapId.id();
         AtlasSlot slot = slotMap.get(id);
         return slot;
