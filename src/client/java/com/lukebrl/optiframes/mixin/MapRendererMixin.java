@@ -24,7 +24,7 @@ public class MapRendererMixin {
     
 
     @Inject(method = "extractRenderState", at = @At("HEAD"))
-    private void optiframes$updateMapRenderState(MapId mapId, MapItemSavedData mapState, MapRenderState renderState, CallbackInfo ci) {
+    private void optiframes$extractRenderState(MapId mapId, MapItemSavedData mapState, MapRenderState renderState, CallbackInfo ci) {
         IMapState iMapState = (IMapState) mapState;
         ((IMapRenderState) renderState).optiframes$setUVs(iMapState.optiframes$getUVs());
         ((IMapRenderState) renderState).optiframes$setAtlasRenderLayer(iMapState.optiframes$getAtlasRenderLayer());
@@ -42,7 +42,7 @@ public class MapRendererMixin {
             ordinal = 0
         )
     )
-    private RenderType optiframes$redirectRenderLayer(
+    private RenderType optiframes$redirectRenderType(
             Identifier texture,
             MapRenderState state,
             PoseStack matrices,
@@ -71,7 +71,7 @@ public class MapRendererMixin {
             ordinal = 0
         )
     )
-    private void optiframes$redirectSubmitCustom(
+    private void optiframes$redirectSubmitCustomGeometry(
             SubmitNodeCollector queue,
             PoseStack matrices,
             RenderType layer,

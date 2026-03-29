@@ -28,9 +28,10 @@ Test are made with Sodium but you can expect same gain without it.
 ## Configuration
 
 You can configure the mod with [Mod Menu](https://modrinth.com/mod/modmenu):
-- **Enable/Disable** the mod entirely
-- **Frame borders** — toggle border rendering between maps for extra performance
-- **Border texture** — toggle the wood texture on borders (solid color when off)
+- **Enable/Disable** Optiframes entirely.
+- **Frame Render Type** — choose between vanilla and optimized frame model rendering.
+- **Frame borders** — toggle frame border rendering for extra performance.
+- **Back Face Rendering** — toggle rendering of item frames back face.
 - **Atlas size** — choose the atlas texture size, Bigger = more maps per draw call. Default 4096 works great for most setups.
 
 ## Compatibility
@@ -41,5 +42,6 @@ You can configure the mod with [Mod Menu](https://modrinth.com/mod/modmenu):
 
 ## Troubleshooting
 
-- Mod not appearing in Mod Menu: confirm the JAR is in `mods` and you launched the Fabric profile.  
+- Mod not appearing in Mod Menu: confirm the JAR is in `mods` and you launched the Fabric profile. 
+- Config screen not opening: make sure that Cloth Config API is installed.
 - Crashes: please attach `latest.log` and any `crash-reports` when opening an issue.

@@ -9,19 +9,19 @@ import com.lukebrl.optiframes.OptiFramesManager;
 import com.lukebrl.optiframes.atlas.MapAtlasManager;
 import com.lukebrl.optiframes.interfaces.IMapRenderState;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.state.MapRenderState;
 import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.resources.Identifier;
 
-@Mixin(GuiGraphics.class)
-public class GuiGraphicsMixin {
+@Mixin(GuiGraphicsExtractor.class)
+public class GuiGraphicsExtractorMixin {
 
     @ModifyArgs(
-        method = "submitMapRenderState",
+        method = "map",
         at = @At(
             value = "INVOKE",
-            target = "Lnet/minecraft/client/gui/GuiGraphics;submitBlit(Lcom/mojang/blaze3d/pipeline/RenderPipeline;Lcom/mojang/blaze3d/textures/GpuTextureView;Lcom/mojang/blaze3d/textures/GpuSampler;IIIIFFFFI)V",
+            target = "Lnet/minecraft/client/gui/GuiGraphicsExtractor;innerBlit(Lcom/mojang/blaze3d/pipeline/RenderPipeline;Lcom/mojang/blaze3d/textures/GpuTextureView;Lcom/mojang/blaze3d/textures/GpuSampler;IIIIFFFFI)V",
             ordinal = 0
         )
     )

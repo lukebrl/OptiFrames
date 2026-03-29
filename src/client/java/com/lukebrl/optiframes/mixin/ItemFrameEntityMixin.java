@@ -18,7 +18,7 @@ public class ItemFrameEntityMixin {
     private static EntityDataAccessor<ItemStack> DATA_ITEM;
 
     @Inject(method = "onSyncedDataUpdated(Lnet/minecraft/network/syncher/EntityDataAccessor;)V", at = @At("TAIL"))
-    private void optiframes$onTrackedDataSet(EntityDataAccessor<?> data, CallbackInfo ci) {
+    private void optiframes$onSyncedDataUpdated(EntityDataAccessor<?> data, CallbackInfo ci) {
         if (data.equals(DATA_ITEM)) {
             MapFrameCacheManager.onFrameItemChanged((ItemFrame) (Object) this);
         }
